@@ -18,12 +18,16 @@ const ADMIN_TABS = [
   { key: 'vendors', label: 'Vendors', icon: '🚚' },
   { key: 'settings', label: 'Settings', icon: '⚙️' },
 ]
-const CASHIER_TABS = [{ key: 'sales', label: 'Sales', icon: '🛒' }]
+const CASHIER_TABS = [
+  { key: 'sales', label: 'Sales', icon: '🛒' },
+  { key: 'dashboard', label: 'My Sales', icon: '📊' },
+  { key: 'products', label: 'Add Product', icon: '💊' },
+]
 
 export default function App() {
   const [session, setSession] = useState(null)
   const [profile, setProfile] = useState(null)
-  const [pharmacyName, setPharmacyName] = useState('Marrions Pharmacy')
+  const [pharmacy, setPharmacy] = useState({ name: 'Marrions Pharmacy', logo_url: null })
   const [tab, setTab] = useState('dashboard')
   const [loading, setLoading] = useState(true)
 
@@ -32,8 +36,8 @@ export default function App() {
     setProfile(prof || null)
     setTab(prof?.role === 'admin' ? 'dashboard' : 'sales')
 
-    const { data: settings } = await supabase.from('pharmacy_settings').select('name').eq('id', 1).single()
-    if (settings?.name) setPharmacyName(settings.name)
+    const { data: settings } = await supabase.from('pharmacy_settings').select('name, logo_url').eq('id', 1).single()
+    if (settings) setPharmacy(settings)
   }
 
   useEffect(() => {
@@ -55,13 +59,14 @@ export default function App() {
 
   const isAdmin = profile?.role === 'admin'
   const tabs = isAdmin ? ADMIN_TABS : CASHIER_TABS
+  const logoSrc = pharmacy.logo_url || '/logo.jpg'
 
   return (
     <div className="app-shell">
       <div className="top-bar">
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <img src="/logo.jpg" alt="logo" style={{ width: 28, height: 28, objectFit: 'contain', borderRadius: 4 }} />
-          <h1>{pharmacyName}</h1>
+          <img src={logoSrc} alt="logo" style={{ width: 28, height: 28, objectFit: 'contain', borderRadius: 4 }} />
+          <h1>{pharmacy.name}</h1>
         </div>
         {session && <button onClick={() => supabase.auth.signOut()}>Sign out</button>}
       </div>
@@ -70,9 +75,11 @@ export default function App() {
         <Login />
       ) : (
         <>
-          {tab === 'dashboard' && isAdmin && <Dashboard />}
-          {tab === 'sales' && <Sales />}
-          {tab === 'products' && isAdmin && <Products isAdmin={isAdmin} />}
+          {tab === 'dashboard' && (
+            <Dashboard scope={isAdmin ? 'all' : 'own'} userId={session.user.id} isAdmin={isAdmin} />
+          )}
+          {tab === 'sales' && <Sales userId={session.user.id} />}
+          {tab === 'products' && <Products isAdmin={isAdmin} />}
           {tab === 'customers' && isAdmin && <Customers />}
           {tab === 'services' && isAdmin && <Services />}
           {tab === 'vendors' && isAdmin && <Vendors />}
