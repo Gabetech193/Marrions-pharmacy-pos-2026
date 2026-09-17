@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import BarcodeScanner from './BarcodeScanner'
 
-const emptyForm = { name: '', category: '', costPrice: '', price: '', stock: '', barcode: '', expiryDate: '' }
+const emptyForm = { name: '', category: '', costPrice: '', price: '', stock: '', reorderLevel: '10', barcode: '', expiryDate: '' }
 
 export default function Products({ isAdmin }) {
   const [products, setProducts] = useState([])
@@ -14,6 +14,8 @@ export default function Products({ isAdmin }) {
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
   const [scanning, setScanning] = useState(false)
+  const [restockingId, setRestockingId] = useState(null)
+  const [restockQty, setRestockQty] = useState('')
 
   async function loadProducts() {
     const { data } = await supabase.from('products').select('*').order('created_at', { ascending: false })
@@ -49,6 +51,7 @@ export default function Products({ isAdmin }) {
       costPrice: p.cost_price || '',
       price: p.price,
       stock: p.stock_quantity,
+      reorderLevel: p.reorder_level ?? 10,
       barcode: p.barcode || '',
       expiryDate: p.expiry_date || '',
     })
@@ -73,6 +76,16 @@ export default function Products({ isAdmin }) {
     else loadProducts()
   }
 
+  async function handleRestock(id) {
+    const qty = parseInt(restockQty, 10)
+    if (!qty || qty <= 0) return
+    const product = products.find((p) => p.id === id)
+    await supabase.from('products').update({ stock_quantity: (product.stock_quantity || 0) + qty }).eq('id', id)
+    setRestockingId(null)
+    setRestockQty('')
+    loadProducts()
+  }
+
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
@@ -95,6 +108,7 @@ export default function Products({ isAdmin }) {
         cost_price: form.costPrice ? parseFloat(form.costPrice) : 0,
         price: parseFloat(form.price),
         stock_quantity: parseInt(form.stock || '0', 10),
+        reorder_level: parseInt(form.reorderLevel || '10', 10),
         barcode: form.barcode || null,
         expiry_date: form.expiryDate || null,
       }
@@ -124,11 +138,9 @@ export default function Products({ isAdmin }) {
       {scanning && <BarcodeScanner onScan={handleScanResult} onClose={() => setScanning(false)} />}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <h2 style={{ margin: 0 }}>Products</h2>
-        {(
-          <button className="btn-secondary" onClick={() => (showForm ? cancelForm() : setShowForm(true))}>
-            {showForm ? 'Cancel' : '+ Add product'}
-          </button>
-        )}
+        <button className="btn-secondary" onClick={() => (showForm ? cancelForm() : setShowForm(true))}>
+          {showForm ? 'Cancel' : '+ Add product'}
+        </button>
       </div>
 
       {showForm && (
@@ -166,6 +178,10 @@ export default function Products({ isAdmin }) {
             <input type="number" value={form.stock} onChange={(e) => setField('stock', e.target.value)} />
           </div>
           <div className="field">
+            <label>Low stock alert level</label>
+            <input type="number" value={form.reorderLevel} onChange={(e) => setField('reorderLevel', e.target.value)} />
+          </div>
+          <div className="field">
             <label>Expiry date</label>
             <input type="date" value={form.expiryDate} onChange={(e) => setField('expiryDate', e.target.value)} />
           </div>
@@ -178,18 +194,41 @@ export default function Products({ isAdmin }) {
 
       {products.map((p) => {
         const expired = p.expiry_date && p.expiry_date < todayStr
+        const lowStock = !expired && p.stock_quantity > 0 && p.stock_quantity <= (p.reorder_level ?? 10)
         return (
-          <div className="product-card" key={p.id}>
-            {p.image_url ? <img src={p.image_url} alt={p.name} /> : <div className="product-thumb-placeholder">No photo</div>}
-            <div className="product-info">
-              <div className="name">{p.name} {expired && <span className="expired-badge">EXPIRED</span>}</div>
-              <div className="meta">{p.category || 'Uncategorized'} • Sell KES {p.price} • Cost KES {p.cost_price || 0} • Stock: {p.stock_quantity}</div>
-              {p.expiry_date && <div className="meta">Expires: {p.expiry_date}</div>}
-            </div>
-            {isAdmin && (
+          <div key={p.id}>
+            <div className="product-card">
+              {p.image_url ? <img src={p.image_url} alt={p.name} /> : <div className="product-thumb-placeholder">No photo</div>}
+              <div className="product-info">
+                <div className="name">
+                  {p.name}{' '}
+                  {expired && <span className="expired-badge">EXPIRED</span>}
+                  {lowStock && <span className="expired-badge" style={{ color: '#a0680a' }}>LOW STOCK</span>}
+                  {p.stock_quantity <= 0 && <span className="expired-badge">OUT OF STOCK</span>}
+                </div>
+                <div className="meta">{p.category || 'Uncategorized'} • Sell KES {p.price} • Cost KES {p.cost_price || 0} • Stock: {p.stock_quantity}</div>
+                {p.expiry_date && <div className="meta">Expires: {p.expiry_date}</div>}
+              </div>
               <div className="product-actions">
-                <button className="icon-btn" onClick={() => startEdit(p)} title="Edit">✏️</button>
-                <button className="icon-btn" onClick={() => handleDelete(p.id)} title="Delete">🗑️</button>
+                <button className="icon-btn" onClick={() => setRestockingId(restockingId === p.id ? null : p.id)} title="Restock">📦</button>
+                {isAdmin && (
+                  <>
+                    <button className="icon-btn" onClick={() => startEdit(p)} title="Edit">✏️</button>
+                    <button className="icon-btn" onClick={() => handleDelete(p.id)} title="Delete">🗑️</button>
+                  </>
+                )}
+              </div>
+            </div>
+            {restockingId === p.id && (
+              <div style={{ display: 'flex', gap: 8, padding: '0 0 12px' }}>
+                <input
+                  type="number"
+                  placeholder="Quantity to add"
+                  value={restockQty}
+                  onChange={(e) => setRestockQty(e.target.value)}
+                  style={{ flex: 1, padding: 8, border: '1px solid #d9d3c7', borderRadius: 6 }}
+                />
+                <button className="btn-primary" style={{ width: 'auto', padding: '8px 16px' }} onClick={() => handleRestock(p.id)}>Add</button>
               </div>
             )}
           </div>

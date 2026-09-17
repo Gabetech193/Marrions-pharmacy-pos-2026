@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
+import SaleDetail from './SaleDetail'
 
 function startOfToday() {
   const d = new Date()
@@ -26,7 +27,9 @@ export default function Dashboard({ scope = 'all', userId, isAdmin }) {
   const [salesItems, setSalesItems] = useState([])
   const [sales, setSales] = useState([])
   const [products, setProducts] = useState([])
+  const [expenses, setExpenses] = useState([])
   const [loading, setLoading] = useState(true)
+  const [viewingSale, setViewingSale] = useState(null)
 
   const { from, to } = useMemo(() => {
     if (range === 'today') return { from: startOfToday(), to: new Date() }
@@ -61,8 +64,14 @@ export default function Dashboard({ scope = 'all', userId, isAdmin }) {
     setSales(salesRows || [])
 
     if (scope === 'all') {
-      const { data: prods } = await supabase.from('products').select('name, cost_price, price, stock_quantity, expiry_date')
+      const { data: prods } = await supabase.from('products').select('name, cost_price, price, stock_quantity, reorder_level, expiry_date')
       setProducts(prods || [])
+      const { data: exp } = await supabase
+        .from('expenses')
+        .select('amount, expense_date')
+        .gte('expense_date', from.toISOString().slice(0, 10))
+        .lte('expense_date', to.toISOString().slice(0, 10))
+      setExpenses(exp || [])
     }
     setLoading(false)
   }
@@ -91,11 +100,14 @@ export default function Dashboard({ scope = 'all', userId, isAdmin }) {
 
   const totalRevenue = salesItems.reduce((sum, it) => sum + Number(it.subtotal), 0)
   const totalCost = salesItems.reduce((sum, it) => sum + Number(it.cost_price) * Number(it.quantity), 0)
-  const profit = totalRevenue - totalCost
+  const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0)
+  const grossProfit = totalRevenue - totalCost
+  const netProfit = grossProfit - totalExpenses
   const stockValue = products.reduce((sum, p) => sum + Number(p.cost_price || 0) * Number(p.stock_quantity || 0), 0)
   const potentialRevenue = products.reduce((sum, p) => sum + Number(p.price || 0) * Number(p.stock_quantity || 0), 0)
   const todayStr = new Date().toISOString().slice(0, 10)
   const expiredProducts = products.filter((p) => p.expiry_date && p.expiry_date < todayStr)
+  const lowStockProducts = products.filter((p) => p.stock_quantity > 0 && p.stock_quantity <= (p.reorder_level ?? 10))
 
   const chartData = useMemo(() => {
     const byDay = {}
@@ -108,13 +120,23 @@ export default function Dashboard({ scope = 'all', userId, isAdmin }) {
 
   return (
     <div className="content">
+      {viewingSale && <SaleDetail sale={viewingSale} onClose={() => setViewingSale(null)} />}
       <h2>{scope === 'own' ? 'My Sales' : 'Dashboard'}</h2>
 
       {scope === 'all' && expiredProducts.length > 0 && (
-        <div style={{ background: '#fbeceb', border: '1px solid #eecfcd', borderRadius: 10, padding: 12, marginBottom: 16 }}>
+        <div style={{ background: '#fbeceb', border: '1px solid #eecfcd', borderRadius: 10, padding: 12, marginBottom: 12 }}>
           <div style={{ fontWeight: 700, color: '#b3261e', marginBottom: 4 }}>⚠ {expiredProducts.length} expired medicine{expiredProducts.length > 1 ? 's' : ''}</div>
           {expiredProducts.map((p) => (
             <div key={p.name} style={{ fontSize: 13, color: '#6b6357' }}>{p.name} — expired {p.expiry_date}</div>
+          ))}
+        </div>
+      )}
+
+      {scope === 'all' && lowStockProducts.length > 0 && (
+        <div style={{ background: '#fdf3e3', border: '1px solid #f0dcb0', borderRadius: 10, padding: 12, marginBottom: 16 }}>
+          <div style={{ fontWeight: 700, color: '#a0680a', marginBottom: 4 }}>📦 {lowStockProducts.length} product{lowStockProducts.length > 1 ? 's' : ''} low on stock</div>
+          {lowStockProducts.map((p) => (
+            <div key={p.name} style={{ fontSize: 13, color: '#6b6357' }}>{p.name} — {p.stock_quantity} left</div>
           ))}
         </div>
       )}
@@ -148,7 +170,9 @@ export default function Dashboard({ scope = 'all', userId, isAdmin }) {
             <DashCard label="Items sold" value={salesItems.reduce((s, it) => s + it.quantity, 0)} />
             {scope === 'all' && (
               <>
-                <DashCard label="Profit" value={`KES ${profit.toFixed(2)}`} highlight={profit >= 0} />
+                <DashCard label="Gross profit" value={`KES ${grossProfit.toFixed(2)}`} highlight={grossProfit >= 0} />
+                <DashCard label="Expenses" value={`KES ${totalExpenses.toFixed(2)}`} />
+                <DashCard label="Net profit" value={`KES ${netProfit.toFixed(2)}`} highlight={netProfit >= 0} />
                 <DashCard label="Cost of goods sold" value={`KES ${totalCost.toFixed(2)}`} />
                 <DashCard label="Stock value (cost)" value={`KES ${stockValue.toFixed(2)}`} />
                 <DashCard label="Stock value (retail)" value={`KES ${potentialRevenue.toFixed(2)}`} />
@@ -169,19 +193,19 @@ export default function Dashboard({ scope = 'all', userId, isAdmin }) {
             </div>
           )}
 
-          <h3>Sales in this period</h3>
+          <h3>Sales in this period (tap to view items)</h3>
           {sales.length === 0 && <p style={{ color: '#6b6357' }}>No sales recorded in this period.</p>}
           {sales.map((s) => {
             const canDelete = isAdmin || s.created_by === userId
             return (
-              <div className="product-card" key={s.id}>
+              <div className="product-card" key={s.id} onClick={() => setViewingSale(s)} style={{ cursor: 'pointer' }}>
                 <div className="product-info">
                   <div className="name">{s.customer_name} — KES {Number(s.total).toFixed(2)}</div>
                   <div className="meta">{new Date(s.created_at).toLocaleString()} • {s.payment_method}</div>
                 </div>
                 {canDelete && (
                   <div className="product-actions">
-                    <button className="icon-btn" onClick={() => handleDeleteSale(s.id)} title="Delete sale">🗑️</button>
+                    <button className="icon-btn" onClick={(e) => { e.stopPropagation(); handleDeleteSale(s.id) }} title="Delete sale">🗑️</button>
                   </div>
                 )}
               </div>

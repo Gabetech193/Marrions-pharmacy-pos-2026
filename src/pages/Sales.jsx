@@ -5,21 +5,27 @@ import BarcodeScanner from './BarcodeScanner'
 
 export default function Sales() {
   const [products, setProducts] = useState([])
-  const [cart, setCart] = useState([]) // { product, quantity }
+  const [customers, setCustomers] = useState([])
+  const [cart, setCart] = useState([])
   const [customerName, setCustomerName] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('cash')
   const [status, setStatus] = useState('')
   const [saving, setSaving] = useState(false)
-  const [completedSale, setCompletedSale] = useState(null) // { sale, items }
+  const [completedSale, setCompletedSale] = useState(null)
   const [scanning, setScanning] = useState(false)
 
   async function loadProducts() {
     const { data } = await supabase.from('products').select('*')
     setProducts(data || [])
   }
+  async function loadCustomers() {
+    const { data } = await supabase.from('customers').select('*').order('name')
+    setCustomers(data || [])
+  }
 
   useEffect(() => {
     loadProducts()
+    loadCustomers()
   }, [])
 
   function addToCart(product) {
@@ -28,9 +34,17 @@ export default function Sales() {
       setStatus(`${product.name} is expired and cannot be sold`)
       return
     }
+    if (!product.stock_quantity || product.stock_quantity <= 0) {
+      alert('This product is out of stock, please restock.')
+      return
+    }
     setCart((prev) => {
       const existing = prev.find((c) => c.product.id === product.id)
       if (existing) {
+        if (existing.quantity + 1 > product.stock_quantity) {
+          alert('Not enough stock available.')
+          return prev
+        }
         return prev.map((c) => (c.product.id === product.id ? { ...c, quantity: c.quantity + 1 } : c))
       }
       return [...prev, { product, quantity: 1 }]
@@ -63,9 +77,23 @@ export default function Sales() {
     setSaving(true)
     setStatus('')
     try {
+      const finalName = customerName.trim() || 'Walk-in'
+
+      // Match an existing customer by name, or create a new one so the list grows over time
+      let customer = customers.find((c) => c.name.toLowerCase() === finalName.toLowerCase())
+      if (!customer && finalName !== 'Walk-in') {
+        const { data: newCustomer, error: custError } = await supabase
+          .from('customers')
+          .insert({ name: finalName })
+          .select()
+          .single()
+        if (custError) throw custError
+        customer = newCustomer
+      }
+
       const { data: sale, error: saleError } = await supabase
         .from('sales')
-        .insert({ customer_name: customerName || 'Walk-in', total, payment_method: paymentMethod, status: 'completed' })
+        .insert({ customer_name: finalName, total, payment_method: paymentMethod, status: 'completed' })
         .select()
         .single()
       if (saleError) throw saleError
@@ -88,9 +116,15 @@ export default function Sales() {
           .eq('id', c.product.id)
       }
 
+      if (customer) {
+        await supabase.from('customers').update({ total_spent: Number(customer.total_spent || 0) + total }).eq('id', customer.id)
+      }
+
       setCompletedSale({ sale, items: cart })
       setCart([])
       setCustomerName('')
+      loadProducts()
+      loadCustomers()
     } catch (err) {
       setStatus(`Error: ${err.message}`)
     } finally {
@@ -113,16 +147,22 @@ export default function Sales() {
 
       {products.map((p) => {
         const expired = p.expiry_date && p.expiry_date < new Date().toISOString().slice(0, 10)
+        const outOfStock = !p.stock_quantity || p.stock_quantity <= 0
+        const disabled = expired || outOfStock
         return (
           <div
             className="product-card"
             key={p.id}
-            onClick={() => !expired && addToCart(p)}
-            style={{ cursor: expired ? 'not-allowed' : 'pointer', opacity: expired ? 0.5 : 1 }}
+            onClick={() => addToCart(p)}
+            style={{ cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.5 : 1 }}
           >
             {p.image_url ? <img src={p.image_url} alt={p.name} /> : <div className="product-thumb-placeholder">No photo</div>}
             <div className="product-info">
-              <div className="name">{p.name} {expired && <span className="expired-badge">EXPIRED</span>}</div>
+              <div className="name">
+                {p.name}{' '}
+                {expired && <span className="expired-badge">EXPIRED</span>}
+                {!expired && outOfStock && <span className="expired-badge">OUT OF STOCK</span>}
+              </div>
               <div className="meta">KES {p.price} • Stock: {p.stock_quantity}</div>
             </div>
           </div>
@@ -143,8 +183,18 @@ export default function Sales() {
           ))}
           <div className="total-row"><span>Total</span><span>KES {total.toFixed(2)}</span></div>
           <div className="field">
-            <label>Customer name (optional)</label>
-            <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
+            <label>Customer</label>
+            <input
+              list="customer-options"
+              value={customerName}
+              onChange={(e) => setCustomerName(e.target.value)}
+              placeholder="Search or type a new customer"
+            />
+            <datalist id="customer-options">
+              {customers.map((c) => (
+                <option key={c.id} value={c.name} />
+              ))}
+            </datalist>
           </div>
           <div className="field">
             <label>Payment method</label>
