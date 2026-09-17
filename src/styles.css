@@ -75,3 +75,22 @@ body {
 .product-actions { display: flex; gap: 10px; }
 .icon-btn { background: none; border: none; font-size: 16px; cursor: pointer; padding: 4px; }
 .expired-badge { color: #b3261e; font-size: 11px; font-weight: 700; }
+
+@media print {
+  body * { visibility: hidden; }
+  #receipt-printable, #receipt-printable * {
+    visibility: visible;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+  #receipt-printable {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+}
