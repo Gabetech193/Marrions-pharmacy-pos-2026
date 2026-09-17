@@ -6,10 +6,11 @@ import Sales from './pages/Sales'
 import Customers from './pages/Customers'
 import Services from './pages/Services'
 import Vendors from './pages/Vendors'
+import Dashboard from './pages/Dashboard'
 
 export default function App() {
   const [session, setSession] = useState(null)
-  const [tab, setTab] = useState('sales')
+  const [tab, setTab] = useState('dashboard')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -40,14 +41,16 @@ export default function App() {
       ) : (
         <>
           <div className="tabs">
+            <button className={tab === 'dashboard' ? 'active' : ''} onClick={() => setTab('dashboard')}>Dashboard</button>
             <button className={tab === 'sales' ? 'active' : ''} onClick={() => setTab('sales')}>Sales</button>
             <button className={tab === 'products' ? 'active' : ''} onClick={() => setTab('products')}>Products</button>
-            <button className={tab === 'customers' ? 'active' : ''} onClick={() => setTab('customers')}>Customers</button>
           </div>
           <div className="tabs">
+            <button className={tab === 'customers' ? 'active' : ''} onClick={() => setTab('customers')}>Customers</button>
             <button className={tab === 'services' ? 'active' : ''} onClick={() => setTab('services')}>Services</button>
             <button className={tab === 'vendors' ? 'active' : ''} onClick={() => setTab('vendors')}>Vendors</button>
           </div>
+          {tab === 'dashboard' && <Dashboard />}
           {tab === 'sales' && <Sales />}
           {tab === 'products' && <Products />}
           {tab === 'customers' && <Customers />}
