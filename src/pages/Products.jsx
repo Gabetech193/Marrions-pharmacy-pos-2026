@@ -124,14 +124,14 @@ export default function Products({ isAdmin }) {
       {scanning && <BarcodeScanner onScan={handleScanResult} onClose={() => setScanning(false)} />}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <h2 style={{ margin: 0 }}>Products</h2>
-        {isAdmin && (
+        {(
           <button className="btn-secondary" onClick={() => (showForm ? cancelForm() : setShowForm(true))}>
             {showForm ? 'Cancel' : '+ Add product'}
           </button>
         )}
       </div>
 
-      {showForm && isAdmin && (
+      {showForm && (
         <form onSubmit={handleSubmit} style={{ marginBottom: 20 }}>
           <div className="image-upload-box">
             {imagePreview && <img src={imagePreview} className="image-preview" alt="preview" />}

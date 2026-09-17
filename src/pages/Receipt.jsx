@@ -2,16 +2,18 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 
 export default function Receipt({ sale, items, onClose }) {
-  const [pharmacy, setPharmacy] = useState({ name: 'Marrions Pharmacy', address: 'P.O. Box 15, Kamukuywa' })
+  const [pharmacy, setPharmacy] = useState({ name: 'Marrions Pharmacy', address: 'P.O. Box 15, Kamukuywa', logo_url: null })
 
   useEffect(() => {
     supabase
       .from('pharmacy_settings')
-      .select('name, address')
+      .select('name, address, logo_url')
       .eq('id', 1)
       .single()
       .then(({ data }) => data && setPharmacy(data))
   }, [])
+
+  const logoSrc = pharmacy.logo_url || '/logo.jpg'
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 50, display: 'flex', alignItems: 'flex-end' }}>
@@ -20,16 +22,16 @@ export default function Receipt({ sale, items, onClose }) {
           id="receipt-printable"
           style={{
             position: 'relative',
-            backgroundImage: 'url(/logo.jpg)',
+            backgroundImage: `url(${logoSrc})`,
             backgroundSize: '65%',
             backgroundRepeat: 'no-repeat',
             backgroundPosition: 'center',
           }}
         >
-          <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.88)' }} />
+          <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.8)' }} />
           <div style={{ position: 'relative', zIndex: 1 }}>
             <div style={{ textAlign: 'center', marginBottom: 12 }}>
-              <img src="/logo.jpg" alt="Marrions Pharmacy" style={{ width: 70, height: 70, objectFit: 'contain' }} />
+              <img src={logoSrc} alt={pharmacy.name} style={{ width: 70, height: 70, objectFit: 'contain' }} onError={(e) => (e.target.style.display = 'none')} />
               <h3 style={{ margin: '6px 0 0' }}>{pharmacy.name}</h3>
               <p style={{ fontSize: 12, color: '#6b6357', margin: 0 }}>{pharmacy.address}</p>
             </div>

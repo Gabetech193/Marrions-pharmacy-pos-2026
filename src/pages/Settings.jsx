@@ -4,9 +4,13 @@ import { supabase } from '../lib/supabaseClient'
 export default function Settings() {
   const [name, setName] = useState('')
   const [address, setAddress] = useState('')
+  const [logoUrl, setLogoUrl] = useState(null)
+  const [logoFile, setLogoFile] = useState(null)
+  const [logoPreview, setLogoPreview] = useState(null)
   const [staff, setStaff] = useState([])
   const [status, setStatus] = useState('')
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
 
   async function load() {
     setLoading(true)
@@ -14,6 +18,7 @@ export default function Settings() {
     if (settings) {
       setName(settings.name)
       setAddress(settings.address)
+      setLogoUrl(settings.logo_url)
     }
     const { data: profiles } = await supabase.from('profiles').select('*').order('created_at', { ascending: true })
     setStaff(profiles || [])
@@ -24,11 +29,38 @@ export default function Settings() {
     load()
   }, [])
 
+  function handleLogoChange(e) {
+    const file = e.target.files[0]
+    if (!file) return
+    setLogoFile(file)
+    setLogoPreview(URL.createObjectURL(file))
+  }
+
   async function saveDetails(e) {
     e.preventDefault()
     setStatus('')
-    const { error } = await supabase.from('pharmacy_settings').update({ name, address }).eq('id', 1)
-    setStatus(error ? `Error: ${error.message}` : 'Saved ✔')
+    setSaving(true)
+    try {
+      let newLogoUrl = logoUrl
+      if (logoFile) {
+        const ext = logoFile.name.split('.').pop()
+        const fileName = `branding/logo-${crypto.randomUUID()}.${ext}`
+        const { error: uploadError } = await supabase.storage.from('product-images').upload(fileName, logoFile)
+        if (uploadError) throw uploadError
+        const { data: urlData } = supabase.storage.from('product-images').getPublicUrl(fileName)
+        newLogoUrl = urlData.publicUrl
+      }
+      const { error } = await supabase.from('pharmacy_settings').update({ name, address, logo_url: newLogoUrl }).eq('id', 1)
+      if (error) throw error
+      setLogoUrl(newLogoUrl)
+      setLogoFile(null)
+      setLogoPreview(null)
+      setStatus('Saved ✔')
+    } catch (err) {
+      setStatus(`Error: ${err.message}`)
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function changeRole(profileId, role) {
@@ -42,6 +74,11 @@ export default function Settings() {
     <div className="content">
       <h2>Settings</h2>
       <form onSubmit={saveDetails} style={{ marginBottom: 24 }}>
+        <div className="image-upload-box">
+          <img src={logoPreview || logoUrl || '/logo.jpg'} alt="Pharmacy logo" style={{ width: 90, height: 90, objectFit: 'contain', marginBottom: 8 }} />
+          <input type="file" accept="image/*" onChange={handleLogoChange} />
+          <p style={{ fontSize: 12, color: '#6b6357', margin: '4px 0 0' }}>Upload a new logo to replace the current one</p>
+        </div>
         <div className="field">
           <label>Pharmacy name</label>
           <input value={name} onChange={(e) => setName(e.target.value)} required />
@@ -51,7 +88,7 @@ export default function Settings() {
           <input value={address} onChange={(e) => setAddress(e.target.value)} required />
         </div>
         {status && <p style={{ fontSize: 13 }}>{status}</p>}
-        <button className="btn-primary" type="submit">Save details</button>
+        <button className="btn-primary" type="submit" disabled={saving}>{saving ? 'Saving...' : 'Save details'}</button>
       </form>
 
       <h3>Staff & roles</h3>

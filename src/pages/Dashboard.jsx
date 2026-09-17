@@ -9,8 +9,7 @@ function startOfToday() {
 }
 function startOfWeek() {
   const d = startOfToday()
-  const day = d.getDay() // 0 = Sunday
-  d.setDate(d.getDate() - day)
+  d.setDate(d.getDate() - d.getDay())
   return d
 }
 function startOfMonth() {
@@ -19,11 +18,13 @@ function startOfMonth() {
   return d
 }
 
-export default function Dashboard() {
-  const [range, setRange] = useState('today') // today | week | month | custom
+// scope: 'all' (admin — full financials) or 'own' (cashier — just their own sales)
+export default function Dashboard({ scope = 'all', userId, isAdmin }) {
+  const [range, setRange] = useState('today')
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
-  const [salesItems, setSalesItems] = useState([]) // joined rows: {created_at, quantity, unit_price, cost_price, subtotal}
+  const [salesItems, setSalesItems] = useState([])
+  const [sales, setSales] = useState([])
   const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -39,22 +40,54 @@ export default function Dashboard() {
 
   async function loadData() {
     setLoading(true)
-    const { data: items } = await supabase
+
+    let itemsQuery = supabase
       .from('sales_items')
-      .select('quantity, unit_price, cost_price, subtotal, created_at')
+      .select('quantity, unit_price, cost_price, subtotal, created_at, sale_id, created_by')
       .gte('created_at', from.toISOString())
       .lte('created_at', to.toISOString())
+    if (scope === 'own') itemsQuery = itemsQuery.eq('created_by', userId)
+    const { data: items } = await itemsQuery
     setSalesItems(items || [])
 
-    const { data: prods } = await supabase.from('products').select('name, cost_price, price, stock_quantity, expiry_date')
-    setProducts(prods || [])
+    let salesQuery = supabase
+      .from('sales')
+      .select('*')
+      .gte('created_at', from.toISOString())
+      .lte('created_at', to.toISOString())
+      .order('created_at', { ascending: false })
+    if (scope === 'own') salesQuery = salesQuery.eq('created_by', userId)
+    const { data: salesRows } = await salesQuery
+    setSales(salesRows || [])
+
+    if (scope === 'all') {
+      const { data: prods } = await supabase.from('products').select('name, cost_price, price, stock_quantity, expiry_date')
+      setProducts(prods || [])
+    }
     setLoading(false)
   }
 
   useEffect(() => {
     loadData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [range, customFrom, customTo])
+  }, [range, customFrom, customTo, scope, userId])
+
+  async function handleDeleteSale(saleId) {
+    if (!window.confirm('Delete this sale? Stock will be restored for its items.')) return
+    const { data: items } = await supabase.from('sales_items').select('product_id, quantity').eq('sale_id', saleId)
+    for (const it of items || []) {
+      const { data: prod } = await supabase.from('products').select('stock_quantity').eq('id', it.product_id).single()
+      if (prod) {
+        await supabase.from('products').update({ stock_quantity: prod.stock_quantity + it.quantity }).eq('id', it.product_id)
+      }
+    }
+    const { error } = await supabase.from('sales').delete().eq('id', saleId)
+    if (error) {
+      alert(error.message)
+      return
+    }
+    loadData()
+  }
 
   const totalRevenue = salesItems.reduce((sum, it) => sum + Number(it.subtotal), 0)
   const totalCost = salesItems.reduce((sum, it) => sum + Number(it.cost_price) * Number(it.quantity), 0)
@@ -64,7 +97,6 @@ export default function Dashboard() {
   const todayStr = new Date().toISOString().slice(0, 10)
   const expiredProducts = products.filter((p) => p.expiry_date && p.expiry_date < todayStr)
 
-  // Group sales by day for the chart
   const chartData = useMemo(() => {
     const byDay = {}
     salesItems.forEach((it) => {
@@ -76,9 +108,9 @@ export default function Dashboard() {
 
   return (
     <div className="content">
-      <h2>Dashboard</h2>
+      <h2>{scope === 'own' ? 'My Sales' : 'Dashboard'}</h2>
 
-      {expiredProducts.length > 0 && (
+      {scope === 'all' && expiredProducts.length > 0 && (
         <div style={{ background: '#fbeceb', border: '1px solid #eecfcd', borderRadius: 10, padding: 12, marginBottom: 16 }}>
           <div style={{ fontWeight: 700, color: '#b3261e', marginBottom: 4 }}>⚠ {expiredProducts.length} expired medicine{expiredProducts.length > 1 ? 's' : ''}</div>
           {expiredProducts.map((p) => (
@@ -113,15 +145,19 @@ export default function Dashboard() {
         <>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
             <DashCard label="Total sales" value={`KES ${totalRevenue.toFixed(2)}`} />
-            <DashCard label="Profit" value={`KES ${profit.toFixed(2)}`} highlight={profit >= 0} />
-            <DashCard label="Cost of goods sold" value={`KES ${totalCost.toFixed(2)}`} />
-            <DashCard label="Stock value (cost)" value={`KES ${stockValue.toFixed(2)}`} />
-            <DashCard label="Stock value (retail)" value={`KES ${potentialRevenue.toFixed(2)}`} />
             <DashCard label="Items sold" value={salesItems.reduce((s, it) => s + it.quantity, 0)} />
+            {scope === 'all' && (
+              <>
+                <DashCard label="Profit" value={`KES ${profit.toFixed(2)}`} highlight={profit >= 0} />
+                <DashCard label="Cost of goods sold" value={`KES ${totalCost.toFixed(2)}`} />
+                <DashCard label="Stock value (cost)" value={`KES ${stockValue.toFixed(2)}`} />
+                <DashCard label="Stock value (retail)" value={`KES ${potentialRevenue.toFixed(2)}`} />
+              </>
+            )}
           </div>
 
           {chartData.length > 0 && (
-            <div style={{ height: 220, marginBottom: 20 }}>
+            <div style={{ height: 200, marginBottom: 20 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData}>
                   <XAxis dataKey="day" fontSize={11} />
@@ -132,7 +168,25 @@ export default function Dashboard() {
               </ResponsiveContainer>
             </div>
           )}
-          {chartData.length === 0 && <p style={{ color: '#6b6357' }}>No sales recorded in this period.</p>}
+
+          <h3>Sales in this period</h3>
+          {sales.length === 0 && <p style={{ color: '#6b6357' }}>No sales recorded in this period.</p>}
+          {sales.map((s) => {
+            const canDelete = isAdmin || s.created_by === userId
+            return (
+              <div className="product-card" key={s.id}>
+                <div className="product-info">
+                  <div className="name">{s.customer_name} — KES {Number(s.total).toFixed(2)}</div>
+                  <div className="meta">{new Date(s.created_at).toLocaleString()} • {s.payment_method}</div>
+                </div>
+                {canDelete && (
+                  <div className="product-actions">
+                    <button className="icon-btn" onClick={() => handleDeleteSale(s.id)} title="Delete sale">🗑️</button>
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </>
       )}
     </div>
@@ -141,13 +195,7 @@ export default function Dashboard() {
 
 function DashCard({ label, value, highlight }) {
   return (
-    <div
-      style={{
-        background: highlight === false ? '#fbeceb' : '#f3efe4',
-        borderRadius: 10,
-        padding: 12,
-      }}
-    >
+    <div style={{ background: highlight === false ? '#fbeceb' : '#f3efe4', borderRadius: 10, padding: 12 }}>
       <div style={{ fontSize: 12, color: '#6b6357' }}>{label}</div>
       <div style={{ fontSize: 18, fontWeight: 700, color: '#123524' }}>{value}</div>
     </div>
