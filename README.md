@@ -17,7 +17,10 @@ A fresh pharmacy POS app with product photo upload, built on React/Vite + Supaba
 - **Expenses** (Admin): log rent, salaries, utilities, etc. by category and date — these feed into the Dashboard's net profit figure.
 - Customers (Admin): add and delete records.
 - Services, Vendors (Admin).
-- Settings (Admin): pharmacy name, address, logo, and staff roles.
+- **Scan sounds**: a short beep on a successful scan, a different low buzz if the camera fails or a scanned barcode doesn't match any product.
+- **Receipt footer**: editable from Settings (defaults to "We treat but God heals").
+- **Dashboard**: now shows "Sales − expenses" (money taken in minus money spent) right next to Total sales, alongside gross/net profit.
+- Settings (Admin): pharmacy name, address, logo, receipt footer, and staff roles.
 
 Note: camera scanning needs HTTPS (Vercel provides this automatically) and the browser will ask for camera permission the first time you scan. WhatsApp sending opens web.whatsapp.com or the WhatsApp app with the message pre-filled — you still tap Send yourself.
 
