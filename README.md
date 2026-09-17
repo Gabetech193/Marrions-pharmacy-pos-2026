@@ -4,24 +4,27 @@ A fresh pharmacy POS app with product photo upload, built on React/Vite + Supaba
 
 ## What's included
 - Staff sign-in / sign-up (Supabase Auth). **The first person to sign up becomes Admin automatically; everyone after that joins as Cashier.**
-- **Roles**: Admin sees Dashboard, Sales, Products, Customers, Services, Vendors, Settings. Cashier sees Sales, their own "My Sales" dashboard, and can add Products (but not edit/delete them, and not view Customers/Services/Vendors/Settings).
+- **Roles**: Admin sees Dashboard, Sales, Products, Orders, Expenses, Customers, Services, Vendors, Settings. Cashier sees Sales, their own "My Sales" dashboard, and can add Products.
 - Bottom navigation bar (icons + labels), scrollable if it doesn't all fit.
-- **Logo**: shown on login and the top bar, and watermarked on receipts. Editable anytime from Settings → upload a new logo image (stored in Supabase, so it no longer depends on the static file bundled in the repo).
-- **Dashboard**: Admin gets full financials — total sales, profit, cost of goods sold, stock value (cost & retail), a daily sales chart, and an expired-medicines notice — for Today / Week / Month / a custom range. Cashier gets "My Sales" — just their own total sales and item count for the same date ranges, with no cost/profit figures.
-- **Sales list with delete**: both dashboards list the sales in the selected period. Cashiers can delete their own sales (stock is restored); Admins can delete any sale.
-- Products: photo, buying price, selling price, barcode (type or scan), expiry date. Anyone logged in can add a product; only Admin can edit or delete one. Expired items can't be sold and are flagged on the Admin dashboard.
-- **Barcode scanning**: on Sales, tap "📷 Scan item" to scan a barcode and add that product to the cart; on Products, tap "Scan" while adding/editing an item.
-- Sales page: cart-based checkout, blocks expired items, reduces stock automatically, then shows a printable receipt.
-- Customers (Admin only): add and delete customer records.
-- Services, Vendors (Admin only).
-- Settings (Admin only): edit pharmacy name, address, and logo; manage staff roles.
+- **Logo**: editable anytime from Settings → upload a new logo image. Shown on login, top bar, and receipts.
+- **Dashboard** (Admin): total sales, gross/net profit (after expenses), cost of goods sold, stock value (cost & retail), a daily sales chart, and notices for expired **and** low-stock medicines, for Today / Week / Month / a custom range. Tap any sale in the list to see exactly what was sold.
+- **"My Sales"** (Cashier): same date-range view, just their own totals — no cost/profit numbers.
+- **Delete a sale**: from either dashboard — cashiers can delete their own, admins any. Deleting restores stock automatically.
+- **Products**: photo, buying price, selling price, barcode (type or scan), expiry date, and a low-stock alert level. Anyone can add or restock (📦 icon); only Admin can edit or delete. Expired or out-of-stock items can't be sold — tapping one shows a clear message.
+- **Barcode scanning**: on Sales, tap "📷 Scan item"; on Products, tap "Scan" while adding/editing.
+- **Sales**: pick a customer from the existing list (it autocompletes as you type) or type a brand-new name — new customers are saved automatically. Cart blocks out-of-stock/expired items with a clear message, checkout reduces stock and prints a receipt.
+- **Orders** (Admin): create a purchase order — pick a vendor, add products with quantity and cost, save to get an invoice you can Print, Save as PDF, or Send via WhatsApp (opens a chat with the vendor's saved phone number, prefilled with the order). Past orders are listed and can be reopened.
+- **Expenses** (Admin): log rent, salaries, utilities, etc. by category and date — these feed into the Dashboard's net profit figure.
+- Customers (Admin): add and delete records.
+- Services, Vendors (Admin).
+- Settings (Admin): pharmacy name, address, logo, and staff roles.
 
-Note: camera scanning needs HTTPS (Vercel provides this automatically) and the browser will ask for camera permission the first time you scan.
+Note: camera scanning needs HTTPS (Vercel provides this automatically) and the browser will ask for camera permission the first time you scan. WhatsApp sending opens web.whatsapp.com or the WhatsApp app with the message pre-filled — you still tap Send yourself.
 
 ## Supabase project (already created for you)
 - Project name: marrions-pharmacy-2026
 - URL: https://exuepxjcqqqnukjujooi.supabase.co
-- Tables: profiles, products (with image_url, cost_price, barcode, expiry_date), customers, sales (with created_by), sales_items (with created_by), services, vendors, pharmacy_settings (with logo_url)
+- Tables: profiles, products (with image_url, cost_price, barcode, expiry_date, reorder_level), customers, sales (with created_by), sales_items (with created_by), services, vendors, pharmacy_settings (with logo_url), purchase_orders, purchase_order_items, expenses
 - Storage bucket: product-images (public read, authenticated upload)
 
 ## If you already created a staff account before this update
