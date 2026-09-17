@@ -5,11 +5,15 @@ A fresh pharmacy POS app with product photo upload, built on React/Vite + Supaba
 ## What's included
 - Staff sign-in / sign-up (Supabase Auth — no plaintext passwords this time)
 - Marrions Pharmacy logo shown on the login screen and top bar
-- Products page: add products with a photo (stored in Supabase Storage, bucket `product-images`)
+- **Dashboard**: total sales, profit, cost of goods sold, and stock value (both at cost and retail) for Today / This Week / This Month / a custom date range, plus a daily sales chart
+- Products page: add products with a photo, buying price, selling price, and barcode (type it or scan it with the camera)
+- **Barcode scanning**: on the Sales page, tap "📷 Scan item" to scan a product's barcode with the phone camera and add it straight to the cart
 - Sales page: cart-based checkout, reduces stock automatically, then shows a printable receipt with the logo as a watermark
 - Customers page: view records
-- Services page: log the services your pharmacy offers (with starter suggestions like BP checks, vaccination, home delivery)
-- Vendors page: track medicine suppliers (with a few well-known Kenyan distributors as starter suggestions — verify current contacts before ordering)
+- Services page: log the services your pharmacy offers (with starter suggestions)
+- Vendors page: track medicine suppliers (with a few known Kenyan distributors as starter suggestions — verify current contacts before ordering)
+
+Note: camera scanning needs the site to be served over HTTPS (Vercel does this automatically) and the browser will ask for camera permission the first time you tap Scan.
 
 ## Supabase project (already created for you)
 - Project name: marrions-pharmacy-2026
