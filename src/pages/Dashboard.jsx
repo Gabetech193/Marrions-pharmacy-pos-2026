@@ -1,0 +1,144 @@
+import { useEffect, useMemo, useState } from 'react'
+import { supabase } from '../lib/supabaseClient'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
+
+function startOfToday() {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+function startOfWeek() {
+  const d = startOfToday()
+  const day = d.getDay() // 0 = Sunday
+  d.setDate(d.getDate() - day)
+  return d
+}
+function startOfMonth() {
+  const d = startOfToday()
+  d.setDate(1)
+  return d
+}
+
+export default function Dashboard() {
+  const [range, setRange] = useState('today') // today | week | month | custom
+  const [customFrom, setCustomFrom] = useState('')
+  const [customTo, setCustomTo] = useState('')
+  const [salesItems, setSalesItems] = useState([]) // joined rows: {created_at, quantity, unit_price, cost_price, subtotal}
+  const [products, setProducts] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  const { from, to } = useMemo(() => {
+    if (range === 'today') return { from: startOfToday(), to: new Date() }
+    if (range === 'week') return { from: startOfWeek(), to: new Date() }
+    if (range === 'month') return { from: startOfMonth(), to: new Date() }
+    return {
+      from: customFrom ? new Date(customFrom) : startOfToday(),
+      to: customTo ? new Date(new Date(customTo).setHours(23, 59, 59, 999)) : new Date(),
+    }
+  }, [range, customFrom, customTo])
+
+  async function loadData() {
+    setLoading(true)
+    const { data: items } = await supabase
+      .from('sales_items')
+      .select('quantity, unit_price, cost_price, subtotal, created_at')
+      .gte('created_at', from.toISOString())
+      .lte('created_at', to.toISOString())
+    setSalesItems(items || [])
+
+    const { data: prods } = await supabase.from('products').select('cost_price, price, stock_quantity')
+    setProducts(prods || [])
+    setLoading(false)
+  }
+
+  useEffect(() => {
+    loadData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [range, customFrom, customTo])
+
+  const totalRevenue = salesItems.reduce((sum, it) => sum + Number(it.subtotal), 0)
+  const totalCost = salesItems.reduce((sum, it) => sum + Number(it.cost_price) * Number(it.quantity), 0)
+  const profit = totalRevenue - totalCost
+  const stockValue = products.reduce((sum, p) => sum + Number(p.cost_price || 0) * Number(p.stock_quantity || 0), 0)
+  const potentialRevenue = products.reduce((sum, p) => sum + Number(p.price || 0) * Number(p.stock_quantity || 0), 0)
+
+  // Group sales by day for the chart
+  const chartData = useMemo(() => {
+    const byDay = {}
+    salesItems.forEach((it) => {
+      const day = new Date(it.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
+      byDay[day] = (byDay[day] || 0) + Number(it.subtotal)
+    })
+    return Object.entries(byDay).map(([day, total]) => ({ day, total }))
+  }, [salesItems])
+
+  return (
+    <div className="content">
+      <h2>Dashboard</h2>
+
+      <div className="tabs" style={{ marginBottom: 16 }}>
+        <button className={range === 'today' ? 'active' : ''} onClick={() => setRange('today')}>Today</button>
+        <button className={range === 'week' ? 'active' : ''} onClick={() => setRange('week')}>Week</button>
+        <button className={range === 'month' ? 'active' : ''} onClick={() => setRange('month')}>Month</button>
+        <button className={range === 'custom' ? 'active' : ''} onClick={() => setRange('custom')}>Custom</button>
+      </div>
+
+      {range === 'custom' && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+          <div className="field" style={{ flex: 1 }}>
+            <label>From</label>
+            <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} />
+          </div>
+          <div className="field" style={{ flex: 1 }}>
+            <label>To</label>
+            <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} />
+          </div>
+        </div>
+      )}
+
+      {loading ? (
+        <p>Loading...</p>
+      ) : (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
+            <DashCard label="Total sales" value={`KES ${totalRevenue.toFixed(2)}`} />
+            <DashCard label="Profit" value={`KES ${profit.toFixed(2)}`} highlight={profit >= 0} />
+            <DashCard label="Cost of goods sold" value={`KES ${totalCost.toFixed(2)}`} />
+            <DashCard label="Stock value (cost)" value={`KES ${stockValue.toFixed(2)}`} />
+            <DashCard label="Stock value (retail)" value={`KES ${potentialRevenue.toFixed(2)}`} />
+            <DashCard label="Items sold" value={salesItems.reduce((s, it) => s + it.quantity, 0)} />
+          </div>
+
+          {chartData.length > 0 && (
+            <div style={{ height: 220, marginBottom: 20 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData}>
+                  <XAxis dataKey="day" fontSize={11} />
+                  <YAxis fontSize={11} />
+                  <Tooltip formatter={(v) => `KES ${v.toFixed(2)}`} />
+                  <Bar dataKey="total" fill="#123524" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+          {chartData.length === 0 && <p style={{ color: '#6b6357' }}>No sales recorded in this period.</p>}
+        </>
+      )}
+    </div>
+  )
+}
+
+function DashCard({ label, value, highlight }) {
+  return (
+    <div
+      style={{
+        background: highlight === false ? '#fbeceb' : '#f3efe4',
+        borderRadius: 10,
+        padding: 12,
+      }}
+    >
+      <div style={{ fontSize: 12, color: '#6b6357' }}>{label}</div>
+      <div style={{ fontSize: 18, fontWeight: 700, color: '#123524' }}>{value}</div>
+    </div>
+  )
+}
