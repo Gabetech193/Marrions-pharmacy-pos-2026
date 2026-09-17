@@ -8,11 +8,15 @@ import Services from './pages/Services'
 import Vendors from './pages/Vendors'
 import Dashboard from './pages/Dashboard'
 import Settings from './pages/Settings'
+import Orders from './pages/Orders'
+import Expenses from './pages/Expenses'
 
 const ADMIN_TABS = [
   { key: 'dashboard', label: 'Dashboard', icon: '📊' },
   { key: 'sales', label: 'Sales', icon: '🛒' },
   { key: 'products', label: 'Products', icon: '💊' },
+  { key: 'orders', label: 'Orders', icon: '📦' },
+  { key: 'expenses', label: 'Expenses', icon: '💰' },
   { key: 'customers', label: 'Customers', icon: '👥' },
   { key: 'services', label: 'Services', icon: '🩺' },
   { key: 'vendors', label: 'Vendors', icon: '🚚' },
@@ -80,6 +84,8 @@ export default function App() {
           )}
           {tab === 'sales' && <Sales userId={session.user.id} />}
           {tab === 'products' && <Products isAdmin={isAdmin} />}
+          {tab === 'orders' && isAdmin && <Orders />}
+          {tab === 'expenses' && isAdmin && <Expenses />}
           {tab === 'customers' && isAdmin && <Customers />}
           {tab === 'services' && isAdmin && <Services />}
           {tab === 'vendors' && isAdmin && <Vendors />}
