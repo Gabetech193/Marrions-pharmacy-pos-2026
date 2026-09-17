@@ -2,12 +2,12 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 
 export default function Receipt({ sale, items, onClose }) {
-  const [pharmacy, setPharmacy] = useState({ name: 'Marrions Pharmacy', address: 'P.O. Box 15, Kamukuywa', logo_url: null })
+  const [pharmacy, setPharmacy] = useState({ name: 'Marrions Pharmacy', address: 'P.O. Box 15, Kamukuywa', logo_url: null, receipt_footer: 'We treat but God heals' })
 
   useEffect(() => {
     supabase
       .from('pharmacy_settings')
-      .select('name, address, logo_url')
+      .select('name, address, logo_url, receipt_footer')
       .eq('id', 1)
       .single()
       .then(({ data }) => data && setPharmacy(data))
@@ -47,7 +47,7 @@ export default function Receipt({ sale, items, onClose }) {
               </div>
             ))}
             <div className="total-row"><span>Total</span><span>KES {sale.total.toFixed(2)}</span></div>
-            <p style={{ textAlign: 'center', fontSize: 12, color: '#6b6357', marginTop: 16 }}>We treat but God heals</p>
+            <p style={{ textAlign: 'center', fontSize: 12, color: '#6b6357', marginTop: 16 }}>{pharmacy.receipt_footer}</p>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import Receipt from './Receipt'
 import BarcodeScanner from './BarcodeScanner'
+import { playScanError } from '../lib/sound'
 
 export default function Sales() {
   const [products, setProducts] = useState([])
@@ -58,6 +59,7 @@ export default function Sales() {
   function handleScanResult(decodedText, err) {
     setScanning(false)
     if (err) {
+      playScanError()
       setStatus(`Scan error: ${err}`)
       return
     }
@@ -66,6 +68,7 @@ export default function Sales() {
       addToCart(match)
       setStatus(`Added ${match.name}`)
     } else {
+      playScanError()
       setStatus(`No product found with barcode ${decodedText}`)
     }
   }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import BarcodeScanner from './BarcodeScanner'
+import { playScanError } from '../lib/sound'
 
 const emptyForm = { name: '', category: '', costPrice: '', price: '', stock: '', reorderLevel: '10', barcode: '', expiryDate: '' }
 
@@ -40,7 +41,10 @@ export default function Products({ isAdmin }) {
   function handleScanResult(decodedText, err) {
     setScanning(false)
     if (decodedText) setField('barcode', decodedText)
-    else if (err) setError(err)
+    else if (err) {
+      playScanError()
+      setError(err)
+    }
   }
 
   function startEdit(p) {

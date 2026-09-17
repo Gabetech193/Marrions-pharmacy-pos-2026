@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabaseClient'
 export default function Settings() {
   const [name, setName] = useState('')
   const [address, setAddress] = useState('')
+  const [receiptFooter, setReceiptFooter] = useState('')
   const [logoUrl, setLogoUrl] = useState(null)
   const [logoFile, setLogoFile] = useState(null)
   const [logoPreview, setLogoPreview] = useState(null)
@@ -19,6 +20,7 @@ export default function Settings() {
       setName(settings.name)
       setAddress(settings.address)
       setLogoUrl(settings.logo_url)
+      setReceiptFooter(settings.receipt_footer || '')
     }
     const { data: profiles } = await supabase.from('profiles').select('*').order('created_at', { ascending: true })
     setStaff(profiles || [])
@@ -50,7 +52,7 @@ export default function Settings() {
         const { data: urlData } = supabase.storage.from('product-images').getPublicUrl(fileName)
         newLogoUrl = urlData.publicUrl
       }
-      const { error } = await supabase.from('pharmacy_settings').update({ name, address, logo_url: newLogoUrl }).eq('id', 1)
+      const { error } = await supabase.from('pharmacy_settings').update({ name, address, logo_url: newLogoUrl, receipt_footer: receiptFooter }).eq('id', 1)
       if (error) throw error
       setLogoUrl(newLogoUrl)
       setLogoFile(null)
@@ -86,6 +88,10 @@ export default function Settings() {
         <div className="field">
           <label>Address</label>
           <input value={address} onChange={(e) => setAddress(e.target.value)} required />
+        </div>
+        <div className="field">
+          <label>Receipt footer message</label>
+          <input value={receiptFooter} onChange={(e) => setReceiptFooter(e.target.value)} placeholder="e.g. We treat but God heals" />
         </div>
         {status && <p style={{ fontSize: 13 }}>{status}</p>}
         <button className="btn-primary" type="submit" disabled={saving}>{saving ? 'Saving...' : 'Save details'}</button>

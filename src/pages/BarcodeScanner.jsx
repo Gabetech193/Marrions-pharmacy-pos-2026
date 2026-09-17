@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { Html5QrcodeScanner } from 'html5-qrcode'
+import { playScanSuccess, playScanError } from '../lib/sound'
 
 // Uses the library's built-in scanner UI (handles camera permission prompts,
 // device selection, and start/stop lifecycle far more reliably than driving
@@ -21,6 +22,7 @@ export default function BarcodeScanner({ onScan, onClose }) {
       (decodedText) => {
         if (doneRef.current) return
         doneRef.current = true
+        playScanSuccess()
         scanner.clear().catch(() => {})
         onScan(decodedText)
       },

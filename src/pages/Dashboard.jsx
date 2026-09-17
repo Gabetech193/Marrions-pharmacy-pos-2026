@@ -101,6 +101,7 @@ export default function Dashboard({ scope = 'all', userId, isAdmin }) {
   const totalRevenue = salesItems.reduce((sum, it) => sum + Number(it.subtotal), 0)
   const totalCost = salesItems.reduce((sum, it) => sum + Number(it.cost_price) * Number(it.quantity), 0)
   const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0)
+  const salesAfterExpenses = totalRevenue - totalExpenses
   const grossProfit = totalRevenue - totalCost
   const netProfit = grossProfit - totalExpenses
   const stockValue = products.reduce((sum, p) => sum + Number(p.cost_price || 0) * Number(p.stock_quantity || 0), 0)
@@ -167,6 +168,9 @@ export default function Dashboard({ scope = 'all', userId, isAdmin }) {
         <>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
             <DashCard label="Total sales" value={`KES ${totalRevenue.toFixed(2)}`} />
+            {scope === 'all' && (
+              <DashCard label="Sales − expenses" value={`KES ${salesAfterExpenses.toFixed(2)}`} highlight={salesAfterExpenses >= 0} />
+            )}
             <DashCard label="Items sold" value={salesItems.reduce((s, it) => s + it.quantity, 0)} />
             {scope === 'all' && (
               <>
