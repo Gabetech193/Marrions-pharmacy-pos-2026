@@ -1,4 +1,18 @@
+import { useEffect, useState } from 'react'
+import { supabase } from '../lib/supabaseClient'
+
 export default function Receipt({ sale, items, onClose }) {
+  const [pharmacy, setPharmacy] = useState({ name: 'Marrions Pharmacy', address: 'P.O. Box 15, Kamukuywa' })
+
+  useEffect(() => {
+    supabase
+      .from('pharmacy_settings')
+      .select('name, address')
+      .eq('id', 1)
+      .single()
+      .then(({ data }) => data && setPharmacy(data))
+  }, [])
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 50, display: 'flex', alignItems: 'flex-end' }}>
       <div style={{ background: '#fff', width: '100%', maxHeight: '90vh', overflowY: 'auto', borderRadius: '16px 16px 0 0', padding: 20, position: 'relative' }}>
@@ -16,8 +30,8 @@ export default function Receipt({ sale, items, onClose }) {
           <div style={{ position: 'relative', zIndex: 1 }}>
             <div style={{ textAlign: 'center', marginBottom: 12 }}>
               <img src="/logo.jpg" alt="Marrions Pharmacy" style={{ width: 70, height: 70, objectFit: 'contain' }} />
-              <h3 style={{ margin: '6px 0 0' }}>Marrions Pharmacy</h3>
-              <p style={{ fontSize: 12, color: '#6b6357', margin: 0 }}>P.O. Box 15, Kamakuywa</p>
+              <h3 style={{ margin: '6px 0 0' }}>{pharmacy.name}</h3>
+              <p style={{ fontSize: 12, color: '#6b6357', margin: 0 }}>{pharmacy.address}</p>
             </div>
             <p style={{ fontSize: 13 }}>Receipt #{sale.id.slice(0, 8).toUpperCase()}</p>
             <p style={{ fontSize: 13 }}>Customer: {sale.customer_name}</p>

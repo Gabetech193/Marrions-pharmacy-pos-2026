@@ -46,7 +46,7 @@ export default function Dashboard() {
       .lte('created_at', to.toISOString())
     setSalesItems(items || [])
 
-    const { data: prods } = await supabase.from('products').select('cost_price, price, stock_quantity')
+    const { data: prods } = await supabase.from('products').select('name, cost_price, price, stock_quantity, expiry_date')
     setProducts(prods || [])
     setLoading(false)
   }
@@ -61,6 +61,8 @@ export default function Dashboard() {
   const profit = totalRevenue - totalCost
   const stockValue = products.reduce((sum, p) => sum + Number(p.cost_price || 0) * Number(p.stock_quantity || 0), 0)
   const potentialRevenue = products.reduce((sum, p) => sum + Number(p.price || 0) * Number(p.stock_quantity || 0), 0)
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const expiredProducts = products.filter((p) => p.expiry_date && p.expiry_date < todayStr)
 
   // Group sales by day for the chart
   const chartData = useMemo(() => {
@@ -75,6 +77,15 @@ export default function Dashboard() {
   return (
     <div className="content">
       <h2>Dashboard</h2>
+
+      {expiredProducts.length > 0 && (
+        <div style={{ background: '#fbeceb', border: '1px solid #eecfcd', borderRadius: 10, padding: 12, marginBottom: 16 }}>
+          <div style={{ fontWeight: 700, color: '#b3261e', marginBottom: 4 }}>⚠ {expiredProducts.length} expired medicine{expiredProducts.length > 1 ? 's' : ''}</div>
+          {expiredProducts.map((p) => (
+            <div key={p.name} style={{ fontSize: 13, color: '#6b6357' }}>{p.name} — expired {p.expiry_date}</div>
+          ))}
+        </div>
+      )}
 
       <div className="tabs" style={{ marginBottom: 16 }}>
         <button className={range === 'today' ? 'active' : ''} onClick={() => setRange('today')}>Today</button>

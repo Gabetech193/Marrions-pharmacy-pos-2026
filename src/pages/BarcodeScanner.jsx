@@ -1,49 +1,46 @@
 import { useEffect, useRef } from 'react'
-import { Html5Qrcode } from 'html5-qrcode'
+import { Html5QrcodeScanner } from 'html5-qrcode'
 
+// Uses the library's built-in scanner UI (handles camera permission prompts,
+// device selection, and start/stop lifecycle far more reliably than driving
+// the raw camera stream by hand).
 export default function BarcodeScanner({ onScan, onClose }) {
   const containerId = 'barcode-scanner-region'
   const scannerRef = useRef(null)
+  const doneRef = useRef(false)
 
   useEffect(() => {
-    const scanner = new Html5Qrcode(containerId)
+    const scanner = new Html5QrcodeScanner(
+      containerId,
+      { fps: 10, qrbox: { width: 250, height: 150 }, rememberLastUsedCamera: true },
+      false
+    )
     scannerRef.current = scanner
-    let isRunning = false
 
-    scanner
-      .start(
-        { facingMode: 'environment' },
-        { fps: 10, qrbox: { width: 250, height: 150 } },
-        (decodedText) => {
-          if (isRunning) {
-            isRunning = false
-            scanner.stop().catch(() => {})
-            onScan(decodedText)
-          }
-        },
-        () => {} // ignore per-frame scan failures
-      )
-      .then(() => {
-        isRunning = true
-      })
-      .catch((err) => {
-        onScan(null, err?.message || 'Could not access camera')
-      })
+    scanner.render(
+      (decodedText) => {
+        if (doneRef.current) return
+        doneRef.current = true
+        scanner.clear().catch(() => {})
+        onScan(decodedText)
+      },
+      () => {} // ignore per-frame scan failures, they happen constantly while aiming
+    )
 
     return () => {
       if (scannerRef.current) {
-        scannerRef.current.stop().catch(() => {})
+        scannerRef.current.clear().catch(() => {})
       }
     }
   }, [])
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: '#000', zIndex: 60, display: 'flex', flexDirection: 'column' }}>
+    <div style={{ position: 'fixed', inset: 0, background: '#fff', zIndex: 60, overflowY: 'auto' }}>
       <div style={{ padding: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ color: '#fff', fontSize: 14 }}>Point camera at barcode</span>
+        <span style={{ fontSize: 14, fontWeight: 600 }}>Scan barcode</span>
         <button className="btn-secondary" onClick={onClose}>Cancel</button>
       </div>
-      <div id={containerId} style={{ flex: 1 }} />
+      <div id={containerId} style={{ padding: 12 }} />
     </div>
   )
 }

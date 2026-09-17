@@ -23,6 +23,11 @@ export default function Sales() {
   }, [])
 
   function addToCart(product) {
+    const todayStr = new Date().toISOString().slice(0, 10)
+    if (product.expiry_date && product.expiry_date < todayStr) {
+      setStatus(`${product.name} is expired and cannot be sold`)
+      return
+    }
     setCart((prev) => {
       const existing = prev.find((c) => c.product.id === product.id)
       if (existing) {
@@ -106,15 +111,23 @@ export default function Sales() {
       </div>
       {status && <p style={{ fontSize: 13 }}>{status}</p>}
 
-      {products.map((p) => (
-        <div className="product-card" key={p.id} onClick={() => addToCart(p)} style={{ cursor: 'pointer' }}>
-          {p.image_url ? <img src={p.image_url} alt={p.name} /> : <div className="product-thumb-placeholder">No photo</div>}
-          <div className="product-info">
-            <div className="name">{p.name}</div>
-            <div className="meta">KES {p.price} • Stock: {p.stock_quantity}</div>
+      {products.map((p) => {
+        const expired = p.expiry_date && p.expiry_date < new Date().toISOString().slice(0, 10)
+        return (
+          <div
+            className="product-card"
+            key={p.id}
+            onClick={() => !expired && addToCart(p)}
+            style={{ cursor: expired ? 'not-allowed' : 'pointer', opacity: expired ? 0.5 : 1 }}
+          >
+            {p.image_url ? <img src={p.image_url} alt={p.name} /> : <div className="product-thumb-placeholder">No photo</div>}
+            <div className="product-info">
+              <div className="name">{p.name} {expired && <span className="expired-badge">EXPIRED</span>}</div>
+              <div className="meta">KES {p.price} • Stock: {p.stock_quantity}</div>
+            </div>
           </div>
-        </div>
-      ))}
+        )
+      })}
 
       {cart.length > 0 && (
         <div style={{ marginTop: 20 }}>

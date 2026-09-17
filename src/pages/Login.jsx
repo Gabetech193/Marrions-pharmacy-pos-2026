@@ -29,7 +29,9 @@ export default function Login() {
       return
     }
     if (data.user) {
-      await supabase.from('profiles').insert({ id: data.user.id, name: name || email, role: 'staff' })
+      const { count } = await supabase.from('profiles').select('*', { count: 'exact', head: true })
+      const role = !count || count === 0 ? 'admin' : 'cashier'
+      await supabase.from('profiles').insert({ id: data.user.id, name: name || email, role })
     }
     setLoading(false)
   }

@@ -2,15 +2,13 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import BarcodeScanner from './BarcodeScanner'
 
-export default function Products() {
+const emptyForm = { name: '', category: '', costPrice: '', price: '', stock: '', barcode: '', expiryDate: '' }
+
+export default function Products({ isAdmin }) {
   const [products, setProducts] = useState([])
   const [showForm, setShowForm] = useState(false)
-  const [name, setName] = useState('')
-  const [category, setCategory] = useState('')
-  const [costPrice, setCostPrice] = useState('')
-  const [price, setPrice] = useState('')
-  const [stock, setStock] = useState('')
-  const [barcode, setBarcode] = useState('')
+  const [editingId, setEditingId] = useState(null)
+  const [form, setForm] = useState(emptyForm)
   const [imageFile, setImageFile] = useState(null)
   const [imagePreview, setImagePreview] = useState(null)
   const [uploading, setUploading] = useState(false)
@@ -26,6 +24,10 @@ export default function Products() {
     loadProducts()
   }, [])
 
+  function setField(key, value) {
+    setForm((f) => ({ ...f, [key]: value }))
+  }
+
   function handleFileChange(e) {
     const file = e.target.files[0]
     if (!file) return
@@ -35,8 +37,40 @@ export default function Products() {
 
   function handleScanResult(decodedText, err) {
     setScanning(false)
-    if (decodedText) setBarcode(decodedText)
+    if (decodedText) setField('barcode', decodedText)
     else if (err) setError(err)
+  }
+
+  function startEdit(p) {
+    setEditingId(p.id)
+    setForm({
+      name: p.name,
+      category: p.category || '',
+      costPrice: p.cost_price || '',
+      price: p.price,
+      stock: p.stock_quantity,
+      barcode: p.barcode || '',
+      expiryDate: p.expiry_date || '',
+    })
+    setImagePreview(p.image_url || null)
+    setImageFile(null)
+    setShowForm(true)
+  }
+
+  function cancelForm() {
+    setShowForm(false)
+    setEditingId(null)
+    setForm(emptyForm)
+    setImageFile(null)
+    setImagePreview(null)
+    setError('')
+  }
+
+  async function handleDelete(id) {
+    if (!window.confirm('Delete this product? This cannot be undone.')) return
+    const { error } = await supabase.from('products').delete().eq('id', id)
+    if (error) setError(error.message)
+    else loadProducts()
   }
 
   async function handleSubmit(e) {
@@ -44,33 +78,37 @@ export default function Products() {
     setError('')
     setUploading(true)
 
-    let image_url = null
     try {
+      let image_url = editingId ? undefined : null
       if (imageFile) {
         const ext = imageFile.name.split('.').pop()
         const fileName = `${crypto.randomUUID()}.${ext}`
-        const { error: uploadError } = await supabase.storage
-          .from('product-images')
-          .upload(fileName, imageFile)
+        const { error: uploadError } = await supabase.storage.from('product-images').upload(fileName, imageFile)
         if (uploadError) throw uploadError
         const { data: urlData } = supabase.storage.from('product-images').getPublicUrl(fileName)
         image_url = urlData.publicUrl
       }
 
-      const { error: insertError } = await supabase.from('products').insert({
-        name,
-        category,
-        cost_price: costPrice ? parseFloat(costPrice) : 0,
-        price: parseFloat(price),
-        stock_quantity: parseInt(stock || '0', 10),
-        barcode: barcode || null,
-        image_url,
-      })
-      if (insertError) throw insertError
+      const payload = {
+        name: form.name,
+        category: form.category,
+        cost_price: form.costPrice ? parseFloat(form.costPrice) : 0,
+        price: parseFloat(form.price),
+        stock_quantity: parseInt(form.stock || '0', 10),
+        barcode: form.barcode || null,
+        expiry_date: form.expiryDate || null,
+      }
+      if (image_url !== undefined) payload.image_url = image_url
 
-      setName(''); setCategory(''); setCostPrice(''); setPrice(''); setStock(''); setBarcode('')
-      setImageFile(null); setImagePreview(null)
-      setShowForm(false)
+      if (editingId) {
+        const { error: updateError } = await supabase.from('products').update(payload).eq('id', editingId)
+        if (updateError) throw updateError
+      } else {
+        const { error: insertError } = await supabase.from('products').insert(payload)
+        if (insertError) throw insertError
+      }
+
+      cancelForm()
       loadProducts()
     } catch (err) {
       setError(err.message)
@@ -79,19 +117,21 @@ export default function Products() {
     }
   }
 
+  const todayStr = new Date().toISOString().slice(0, 10)
+
   return (
     <div className="content">
-      {scanning && (
-        <BarcodeScanner onScan={handleScanResult} onClose={() => setScanning(false)} />
-      )}
+      {scanning && <BarcodeScanner onScan={handleScanResult} onClose={() => setScanning(false)} />}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <h2 style={{ margin: 0 }}>Products</h2>
-        <button className="btn-secondary" onClick={() => setShowForm(!showForm)}>
-          {showForm ? 'Cancel' : '+ Add product'}
-        </button>
+        {isAdmin && (
+          <button className="btn-secondary" onClick={() => (showForm ? cancelForm() : setShowForm(true))}>
+            {showForm ? 'Cancel' : '+ Add product'}
+          </button>
+        )}
       </div>
 
-      {showForm && (
+      {showForm && isAdmin && (
         <form onSubmit={handleSubmit} style={{ marginBottom: 20 }}>
           <div className="image-upload-box">
             {imagePreview && <img src={imagePreview} className="image-preview" alt="preview" />}
@@ -100,51 +140,61 @@ export default function Products() {
           </div>
           <div className="field">
             <label>Name</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} required />
+            <input value={form.name} onChange={(e) => setField('name', e.target.value)} required />
           </div>
           <div className="field">
             <label>Category</label>
-            <input value={category} onChange={(e) => setCategory(e.target.value)} />
+            <input value={form.category} onChange={(e) => setField('category', e.target.value)} />
           </div>
           <div className="field">
             <label>Barcode</label>
             <div style={{ display: 'flex', gap: 8 }}>
-              <input value={barcode} onChange={(e) => setBarcode(e.target.value)} placeholder="Scan or type" style={{ flex: 1 }} />
+              <input value={form.barcode} onChange={(e) => setField('barcode', e.target.value)} placeholder="Scan or type" style={{ flex: 1 }} />
               <button type="button" className="btn-secondary" onClick={() => setScanning(true)}>Scan</button>
             </div>
           </div>
           <div className="field">
             <label>Buying price / cost (KES)</label>
-            <input type="number" step="0.01" value={costPrice} onChange={(e) => setCostPrice(e.target.value)} />
+            <input type="number" step="0.01" value={form.costPrice} onChange={(e) => setField('costPrice', e.target.value)} />
           </div>
           <div className="field">
             <label>Selling price (KES)</label>
-            <input type="number" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} required />
+            <input type="number" step="0.01" value={form.price} onChange={(e) => setField('price', e.target.value)} required />
           </div>
           <div className="field">
             <label>Stock quantity</label>
-            <input type="number" value={stock} onChange={(e) => setStock(e.target.value)} />
+            <input type="number" value={form.stock} onChange={(e) => setField('stock', e.target.value)} />
+          </div>
+          <div className="field">
+            <label>Expiry date</label>
+            <input type="date" value={form.expiryDate} onChange={(e) => setField('expiryDate', e.target.value)} />
           </div>
           {error && <p className="error-text">{error}</p>}
           <button className="btn-primary" type="submit" disabled={uploading}>
-            {uploading ? 'Saving...' : 'Save product'}
+            {uploading ? 'Saving...' : editingId ? 'Update product' : 'Save product'}
           </button>
         </form>
       )}
 
-      {products.map((p) => (
-        <div className="product-card" key={p.id}>
-          {p.image_url ? (
-            <img src={p.image_url} alt={p.name} />
-          ) : (
-            <div className="product-thumb-placeholder">No photo</div>
-          )}
-          <div className="product-info">
-            <div className="name">{p.name}</div>
-            <div className="meta">{p.category || 'Uncategorized'} • Sell KES {p.price} • Cost KES {p.cost_price || 0} • Stock: {p.stock_quantity}</div>
+      {products.map((p) => {
+        const expired = p.expiry_date && p.expiry_date < todayStr
+        return (
+          <div className="product-card" key={p.id}>
+            {p.image_url ? <img src={p.image_url} alt={p.name} /> : <div className="product-thumb-placeholder">No photo</div>}
+            <div className="product-info">
+              <div className="name">{p.name} {expired && <span className="expired-badge">EXPIRED</span>}</div>
+              <div className="meta">{p.category || 'Uncategorized'} • Sell KES {p.price} • Cost KES {p.cost_price || 0} • Stock: {p.stock_quantity}</div>
+              {p.expiry_date && <div className="meta">Expires: {p.expiry_date}</div>}
+            </div>
+            {isAdmin && (
+              <div className="product-actions">
+                <button className="icon-btn" onClick={() => startEdit(p)} title="Edit">✏️</button>
+                <button className="icon-btn" onClick={() => handleDelete(p.id)} title="Delete">🗑️</button>
+              </div>
+            )}
           </div>
-        </div>
-      ))}
+        )
+      })}
       {products.length === 0 && !showForm && <p style={{ color: '#6b6357' }}>No products yet. Add your first one.</p>}
     </div>
   )
