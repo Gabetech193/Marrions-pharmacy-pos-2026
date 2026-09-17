@@ -4,22 +4,24 @@ A fresh pharmacy POS app with product photo upload, built on React/Vite + Supaba
 
 ## What's included
 - Staff sign-in / sign-up (Supabase Auth). **The first person to sign up becomes Admin automatically; everyone after that joins as Cashier.**
-- **Roles**: Admin can access everything (Dashboard, Products, Customers, Services, Vendors, Settings, Sales). Cashier only sees the Sales screen. An Admin can promote/demote staff from Settings → Staff & roles.
+- **Roles**: Admin sees Dashboard, Sales, Products, Customers, Services, Vendors, Settings. Cashier sees Sales, their own "My Sales" dashboard, and can add Products (but not edit/delete them, and not view Customers/Services/Vendors/Settings).
 - Bottom navigation bar (icons + labels), scrollable if it doesn't all fit.
-- Marrions Pharmacy logo shown on the login screen and top bar
-- **Dashboard** (Admin only): total sales, profit, cost of goods sold, and stock value (cost & retail) for Today / Week / Month / a custom date range, a daily sales chart, and a notice listing any expired medicines
-- Products page (Admin only can add/edit/delete; visible to Admin): photo, buying price, selling price, barcode (type or scan), and **expiry date** — expired items are blocked from being sold and flagged on the dashboard
-- **Barcode scanning**: on Sales, tap "📷 Scan item" to scan a barcode and add that product to the cart; on Products, tap "Scan" while adding/editing an item
-- Sales page (everyone): cart-based checkout, blocks expired items, reduces stock automatically, then shows a printable receipt watermarked with the logo and pulling the pharmacy name/address from Settings
-- Customers, Services, Vendors pages (Admin only)
-- **Settings** (Admin only): edit pharmacy name & address (used in the top bar and on receipts), and manage staff roles
+- **Logo**: shown on login and the top bar, and watermarked on receipts. Editable anytime from Settings → upload a new logo image (stored in Supabase, so it no longer depends on the static file bundled in the repo).
+- **Dashboard**: Admin gets full financials — total sales, profit, cost of goods sold, stock value (cost & retail), a daily sales chart, and an expired-medicines notice — for Today / Week / Month / a custom range. Cashier gets "My Sales" — just their own total sales and item count for the same date ranges, with no cost/profit figures.
+- **Sales list with delete**: both dashboards list the sales in the selected period. Cashiers can delete their own sales (stock is restored); Admins can delete any sale.
+- Products: photo, buying price, selling price, barcode (type or scan), expiry date. Anyone logged in can add a product; only Admin can edit or delete one. Expired items can't be sold and are flagged on the Admin dashboard.
+- **Barcode scanning**: on Sales, tap "📷 Scan item" to scan a barcode and add that product to the cart; on Products, tap "Scan" while adding/editing an item.
+- Sales page: cart-based checkout, blocks expired items, reduces stock automatically, then shows a printable receipt.
+- Customers (Admin only): add and delete customer records.
+- Services, Vendors (Admin only).
+- Settings (Admin only): edit pharmacy name, address, and logo; manage staff roles.
 
 Note: camera scanning needs HTTPS (Vercel provides this automatically) and the browser will ask for camera permission the first time you scan.
 
 ## Supabase project (already created for you)
 - Project name: marrions-pharmacy-2026
 - URL: https://exuepxjcqqqnukjujooi.supabase.co
-- Tables: profiles, products (with image_url, cost_price, barcode, expiry_date), customers, sales, sales_items, services, vendors, pharmacy_settings
+- Tables: profiles, products (with image_url, cost_price, barcode, expiry_date), customers, sales (with created_by), sales_items (with created_by), services, vendors, pharmacy_settings (with logo_url)
 - Storage bucket: product-images (public read, authenticated upload)
 
 ## If you already created a staff account before this update
