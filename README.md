@@ -19,7 +19,9 @@ A fresh pharmacy POS app with product photo upload, built on React/Vite + Supaba
 - Services, Vendors (Admin).
 - **Scan sounds**: a short beep on a successful scan, a different low buzz if the camera fails or a scanned barcode doesn't match any product.
 - **Receipt footer**: editable from Settings (defaults to "We treat but God heals").
-- **Dashboard**: now shows "Sales − expenses" (money taken in minus money spent) right next to Total sales, alongside gross/net profit.
+- **Sales**: now lists Services below Products, so you can sell a consultation, vaccination, etc. alongside items. Cart is shown at the top of the screen instead of the bottom.
+- **Dashboard**: adds a "Services sold" count, and the expense card is labeled "Cash left after expenses" (total sales revenue minus everything logged in Expenses — it does not include cost of goods, that's covered separately by Gross/Net profit). Cards now use distinct colors per metric for easier scanning at a glance.
+- **Receipts** now show "You were served by [staff name]" and a scannable QR code encoding the receipt number, customer, total, and staff name.
 - Settings (Admin): pharmacy name, address, logo, receipt footer, and staff roles.
 
 Note: camera scanning needs HTTPS (Vercel provides this automatically) and the browser will ask for camera permission the first time you scan. WhatsApp sending opens web.whatsapp.com or the WhatsApp app with the message pre-filled — you still tap Send yourself.
