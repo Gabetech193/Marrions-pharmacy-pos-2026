@@ -68,7 +68,7 @@ export default function OrderInvoice({ order, items, vendor, onClose }) {
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 50, display: 'flex', alignItems: 'flex-end' }}>
-      <div style={{ background: '#fff', width: '100%', maxHeight: '90vh', overflowY: 'auto', borderRadius: '16px 16px 0 0', padding: 20 }}>
+      <div className="modal-sheet" style={{ background: '#fff', maxHeight: '90vh', overflowY: 'auto', borderRadius: '16px 16px 0 0', padding: 20 }}>
         <div style={{ textAlign: 'center', marginBottom: 12 }}>
           <img src={logoSrc} alt={pharmacy.name} style={{ width: 60, height: 60, objectFit: 'contain' }} onError={(e) => (e.target.style.display = 'none')} />
           <h3 style={{ margin: '6px 0 0' }}>{pharmacy.name}</h3>

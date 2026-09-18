@@ -18,7 +18,7 @@ export default function SaleDetail({ sale, onClose }) {
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 55, display: 'flex', alignItems: 'flex-end' }}>
-      <div style={{ background: '#fff', width: '100%', maxHeight: '80vh', overflowY: 'auto', borderRadius: '16px 16px 0 0', padding: 20 }}>
+      <div className="modal-sheet" style={{ background: '#fff', maxHeight: '80vh', overflowY: 'auto', borderRadius: '16px 16px 0 0', padding: 20 }}>
         <h3 style={{ marginTop: 0 }}>Sale — {sale.customer_name}</h3>
         <p style={{ fontSize: 13, color: '#6b6357' }}>{new Date(sale.created_at).toLocaleString()} • {sale.payment_method}</p>
         <hr />

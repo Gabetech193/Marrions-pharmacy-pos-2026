@@ -167,7 +167,7 @@ export default function Dashboard({ scope = 'all', userId, isAdmin }) {
         <p>Loading...</p>
       ) : (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 20 }}>
             <DashCard label="Total sales" value={`KES ${totalRevenue.toFixed(2)}`} bg="#e3f2ec" fg="#0f6b41" />
             {scope === 'all' && (
               <DashCard label="Cash left after expenses" value={`KES ${salesAfterExpenses.toFixed(2)}`} bg={salesAfterExpenses >= 0 ? '#e0f3f5' : '#fbeceb'} fg={salesAfterExpenses >= 0 ? '#0e6e79' : '#b3261e'} />
