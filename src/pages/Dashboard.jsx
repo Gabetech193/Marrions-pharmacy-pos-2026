@@ -46,7 +46,7 @@ export default function Dashboard({ scope = 'all', userId, isAdmin }) {
 
     let itemsQuery = supabase
       .from('sales_items')
-      .select('quantity, unit_price, cost_price, subtotal, created_at, sale_id, created_by')
+      .select('quantity, unit_price, cost_price, subtotal, created_at, sale_id, created_by, item_type')
       .gte('created_at', from.toISOString())
       .lte('created_at', to.toISOString())
     if (scope === 'own') itemsQuery = itemsQuery.eq('created_by', userId)
@@ -102,6 +102,7 @@ export default function Dashboard({ scope = 'all', userId, isAdmin }) {
   const totalCost = salesItems.reduce((sum, it) => sum + Number(it.cost_price) * Number(it.quantity), 0)
   const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0)
   const salesAfterExpenses = totalRevenue - totalExpenses
+  const servicesSold = salesItems.filter((it) => it.item_type === 'service').reduce((s, it) => s + it.quantity, 0)
   const grossProfit = totalRevenue - totalCost
   const netProfit = grossProfit - totalExpenses
   const stockValue = products.reduce((sum, p) => sum + Number(p.cost_price || 0) * Number(p.stock_quantity || 0), 0)
@@ -169,9 +170,10 @@ export default function Dashboard({ scope = 'all', userId, isAdmin }) {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
             <DashCard label="Total sales" value={`KES ${totalRevenue.toFixed(2)}`} />
             {scope === 'all' && (
-              <DashCard label="Sales − expenses" value={`KES ${salesAfterExpenses.toFixed(2)}`} highlight={salesAfterExpenses >= 0} />
+              <DashCard label="Cash left after expenses" value={`KES ${salesAfterExpenses.toFixed(2)}`} highlight={salesAfterExpenses >= 0} />
             )}
             <DashCard label="Items sold" value={salesItems.reduce((s, it) => s + it.quantity, 0)} />
+            {scope === 'all' && <DashCard label="Services sold" value={servicesSold} />}
             {scope === 'all' && (
               <>
                 <DashCard label="Gross profit" value={`KES ${grossProfit.toFixed(2)}`} highlight={grossProfit >= 0} />
