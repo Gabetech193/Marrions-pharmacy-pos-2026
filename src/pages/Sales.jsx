@@ -251,7 +251,7 @@ export default function Sales() {
       {services.length === 0 && <p style={{ color: '#6b6357' }}>No services added yet — add some in the Services tab.</p>}
       {services.map((s) => (
         <div className="product-card" key={s.id} onClick={() => addServiceToCart(s)} style={{ cursor: 'pointer' }}>
-          <div className="product-thumb-placeholder">🩺</div>
+          {s.image_url ? <img src={s.image_url} alt={s.name} /> : <div className="product-thumb-placeholder">🩺</div>}
           <div className="product-info">
             <div className="name">{s.name}</div>
             <div className="meta">{s.description}{s.price != null ? ` • KES ${s.price}` : ' • No price set'}</div>
