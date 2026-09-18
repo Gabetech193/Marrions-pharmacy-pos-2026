@@ -6,6 +6,21 @@ body {
   color: #1f2a24;
 }
 .app-shell { max-width: 480px; margin: 0 auto; min-height: 100vh; background: #fff; padding-bottom: 64px; position: relative; }
+
+@media (min-width: 700px) {
+  .app-shell { max-width: 700px; box-shadow: 0 0 24px rgba(0,0,0,0.06); }
+  .bottom-nav { max-width: 700px; }
+  .content { padding: 24px 32px; }
+}
+@media (min-width: 1000px) {
+  .app-shell { max-width: 960px; }
+  .bottom-nav { max-width: 960px; }
+}
+
+.modal-sheet { width: 100%; max-width: 480px; margin: 0 auto; }
+@media (min-width: 700px) {
+  .modal-sheet { max-width: 640px; }
+}
 .top-bar {
   background: #123524;
   color: #fff;
@@ -84,13 +99,24 @@ body {
     print-color-adjust: exact !important;
     color-adjust: exact !important;
   }
+  .receipt-overlay {
+    position: static !important;
+    background: none !important;
+    display: block !important;
+    inset: auto !important;
+  }
+  .modal-sheet {
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
   #receipt-printable {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-    color-adjust: exact !important;
+    position: static !important;
+    width: 100% !important;
+    margin: 0 !important;
+    left: auto !important;
+    top: auto !important;
   }
 }
