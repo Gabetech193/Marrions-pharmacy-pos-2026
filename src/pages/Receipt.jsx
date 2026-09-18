@@ -33,7 +33,7 @@ export default function Receipt({ sale, items, servedBy, onClose }) {
   const logoSrc = pharmacy.logo_url || '/logo.jpg'
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 50, display: 'flex', alignItems: 'flex-end' }}>
+    <div className="receipt-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 50, display: 'flex', alignItems: 'flex-end' }}>
       <div className="modal-sheet" style={{ background: '#fff', maxHeight: '90vh', overflowY: 'auto', borderRadius: '16px 16px 0 0', padding: 20, position: 'relative' }}>
         <div
           id="receipt-printable"
@@ -64,6 +64,15 @@ export default function Receipt({ sale, items, servedBy, onClose }) {
               </div>
             ))}
             <div className="total-row"><span>Total</span><span>KES {sale.total.toFixed(2)}</span></div>
+            {sale.amount_paid != null && (
+              <>
+                <div className="cart-row"><span>Amount paid</span><span>KES {Number(sale.amount_paid).toFixed(2)}</span></div>
+                <div className="cart-row">
+                  <span>{Number(sale.amount_paid) - Number(sale.total) >= 0 ? 'Change' : 'Balance due'}</span>
+                  <span>KES {Math.abs(Number(sale.amount_paid) - Number(sale.total)).toFixed(2)}</span>
+                </div>
+              </>
+            )}
             <p style={{ textAlign: 'center', fontSize: 12, color: '#6b6357', marginTop: 16, marginBottom: 4 }}>{pharmacy.receipt_footer}</p>
             <p style={{ textAlign: 'center', fontSize: 12, color: '#6b6357', margin: 0 }}>You were served by {servedBy || 'Staff'}</p>
             {qrDataUrl && (

@@ -7,9 +7,10 @@ export default function Orders() {
   const [vendors, setVendors] = useState([])
   const [products, setProducts] = useState([])
   const [showForm, setShowForm] = useState(false)
+  const [editingId, setEditingId] = useState(null)
   const [vendorId, setVendorId] = useState('')
-  const [cart, setCart] = useState([]) // { product, quantity, unit_cost }
-  const [viewing, setViewing] = useState(null) // { order, items, vendor }
+  const [cart, setCart] = useState([]) // { id, name, quantity, unit_cost }
+  const [viewing, setViewing] = useState(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -30,18 +31,47 @@ export default function Orders() {
 
   function addToCart(product) {
     setCart((prev) => {
-      const existing = prev.find((c) => c.product.id === product.id)
-      if (existing) return prev.map((c) => (c.product.id === product.id ? { ...c, quantity: c.quantity + 1 } : c))
-      return [...prev, { product, quantity: 1, unit_cost: product.cost_price || 0 }]
+      const existing = prev.find((c) => c.id === product.id)
+      if (existing) return prev.map((c) => (c.id === product.id ? { ...c, quantity: c.quantity + 1 } : c))
+      return [...prev, { id: product.id, name: product.name, quantity: 1, unit_cost: product.cost_price || 0 }]
     })
   }
 
-  function updateCartItem(productId, field, value) {
-    setCart((prev) => prev.map((c) => (c.product.id === productId ? { ...c, [field]: value } : c)))
+  function updateCartItem(id, field, value) {
+    setCart((prev) => prev.map((c) => (c.id === id ? { ...c, [field]: value } : c)))
   }
 
-  function removeFromCart(productId) {
-    setCart((prev) => prev.filter((c) => c.product.id !== productId))
+  function removeFromCart(id) {
+    setCart((prev) => prev.filter((c) => c.id !== id))
+  }
+
+  function cancelForm() {
+    setShowForm(false)
+    setEditingId(null)
+    setVendorId('')
+    setCart([])
+    setError('')
+  }
+
+  async function startEdit(order) {
+    const { data: items } = await supabase.from('purchase_order_items').select('*').eq('order_id', order.id)
+    setEditingId(order.id)
+    setVendorId(order.vendor_id || '')
+    setCart(
+      (items || []).map((it) => ({
+        id: it.product_id,
+        name: it.product_name,
+        quantity: it.quantity,
+        unit_cost: it.unit_cost,
+      }))
+    )
+    setShowForm(true)
+  }
+
+  async function handleDelete(id) {
+    if (!window.confirm('Delete this order?')) return
+    await supabase.from('purchase_orders').delete().eq('id', id)
+    loadAll()
   }
 
   const total = cart.reduce((sum, c) => sum + Number(c.unit_cost) * Number(c.quantity), 0)
@@ -55,17 +85,33 @@ export default function Orders() {
     setError('')
     try {
       const vendor = vendors.find((v) => v.id === vendorId)
-      const { data: order, error: orderError } = await supabase
-        .from('purchase_orders')
-        .insert({ vendor_id: vendorId, vendor_name: vendor.name, total, status: 'sent' })
-        .select()
-        .single()
-      if (orderError) throw orderError
+      let order
+
+      if (editingId) {
+        const { data, error: updateError } = await supabase
+          .from('purchase_orders')
+          .update({ vendor_id: vendorId, vendor_name: vendor.name, total })
+          .eq('id', editingId)
+          .select()
+          .single()
+        if (updateError) throw updateError
+        order = data
+        const { error: delError } = await supabase.from('purchase_order_items').delete().eq('order_id', editingId)
+        if (delError) throw delError
+      } else {
+        const { data, error: orderError } = await supabase
+          .from('purchase_orders')
+          .insert({ vendor_id: vendorId, vendor_name: vendor.name, total, status: 'sent' })
+          .select()
+          .single()
+        if (orderError) throw orderError
+        order = data
+      }
 
       const items = cart.map((c) => ({
         order_id: order.id,
-        product_id: c.product.id,
-        product_name: c.product.name,
+        product_id: c.id,
+        product_name: c.name,
         quantity: c.quantity,
         unit_cost: Number(c.unit_cost),
         subtotal: Number(c.unit_cost) * c.quantity,
@@ -74,9 +120,7 @@ export default function Orders() {
       if (itemsError) throw itemsError
 
       setViewing({ order, items, vendor })
-      setCart([])
-      setVendorId('')
-      setShowForm(false)
+      cancelForm()
       loadAll()
     } catch (err) {
       setError(err.message)
@@ -99,7 +143,7 @@ export default function Orders() {
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <h2 style={{ margin: 0 }}>Orders</h2>
-        <button className="btn-secondary" onClick={() => setShowForm(!showForm)}>
+        <button className="btn-secondary" onClick={() => (showForm ? cancelForm() : setShowForm(true))}>
           {showForm ? 'Cancel' : '+ New order'}
         </button>
       </div>
@@ -128,28 +172,28 @@ export default function Orders() {
             <div style={{ marginTop: 16 }}>
               <h3>Order items</h3>
               {cart.map((c) => (
-                <div key={c.product.id} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
-                  <span style={{ flex: 1, fontSize: 14 }}>{c.product.name}</span>
+                <div key={c.id} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+                  <span style={{ flex: 1, fontSize: 14 }}>{c.name}</span>
                   <input
                     type="number"
                     value={c.quantity}
-                    onChange={(e) => updateCartItem(c.product.id, 'quantity', parseInt(e.target.value || '1', 10))}
+                    onChange={(e) => updateCartItem(c.id, 'quantity', parseInt(e.target.value || '1', 10))}
                     style={{ width: 60, padding: 6, border: '1px solid #d9d3c7', borderRadius: 6 }}
                   />
                   <input
                     type="number"
                     step="0.01"
                     value={c.unit_cost}
-                    onChange={(e) => updateCartItem(c.product.id, 'unit_cost', e.target.value)}
+                    onChange={(e) => updateCartItem(c.id, 'unit_cost', e.target.value)}
                     style={{ width: 80, padding: 6, border: '1px solid #d9d3c7', borderRadius: 6 }}
                   />
-                  <a href="#" onClick={() => removeFromCart(c.product.id)} style={{ fontSize: 12 }}>remove</a>
+                  <a href="#" onClick={() => removeFromCart(c.id)} style={{ fontSize: 12 }}>remove</a>
                 </div>
               ))}
               <div className="total-row"><span>Total</span><span>KES {total.toFixed(2)}</span></div>
               {error && <p className="error-text">{error}</p>}
               <button className="btn-primary" onClick={saveOrder} disabled={saving}>
-                {saving ? 'Saving...' : 'Save & prepare invoice'}
+                {saving ? 'Saving...' : editingId ? 'Update & prepare invoice' : 'Save & prepare invoice'}
               </button>
             </div>
           )}
@@ -159,10 +203,14 @@ export default function Orders() {
       <h3>Past orders</h3>
       {orders.length === 0 && <p style={{ color: '#6b6357' }}>No orders yet.</p>}
       {orders.map((o) => (
-        <div className="product-card" key={o.id} onClick={() => openExistingOrder(o)} style={{ cursor: 'pointer' }}>
-          <div className="product-info">
+        <div className="product-card" key={o.id}>
+          <div className="product-info" onClick={() => openExistingOrder(o)} style={{ cursor: 'pointer' }}>
             <div className="name">{o.vendor_name}</div>
             <div className="meta">{new Date(o.created_at).toLocaleDateString()} • KES {Number(o.total).toFixed(2)} • {o.status}</div>
+          </div>
+          <div className="product-actions">
+            <button className="icon-btn" onClick={() => startEdit(o)} title="Edit">✏️</button>
+            <button className="icon-btn" onClick={() => handleDelete(o.id)} title="Delete">🗑️</button>
           </div>
         </div>
       ))}

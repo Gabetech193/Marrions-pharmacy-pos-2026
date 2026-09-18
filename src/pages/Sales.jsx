@@ -11,6 +11,7 @@ export default function Sales() {
   const [cart, setCart] = useState([]) // { type: 'product'|'service', item, quantity }
   const [customerName, setCustomerName] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('cash')
+  const [amountPaid, setAmountPaid] = useState('')
   const [status, setStatus] = useState('')
   const [saving, setSaving] = useState(false)
   const [completedSale, setCompletedSale] = useState(null)
@@ -108,6 +109,7 @@ export default function Sales() {
     setStatus('')
     try {
       const finalName = customerName.trim() || 'Walk-in'
+      const paidAmount = amountPaid !== '' ? parseFloat(amountPaid) : total
 
       let customer = customers.find((c) => c.name.toLowerCase() === finalName.toLowerCase())
       if (!customer && finalName !== 'Walk-in') {
@@ -122,7 +124,7 @@ export default function Sales() {
 
       const { data: sale, error: saleError } = await supabase
         .from('sales')
-        .insert({ customer_name: finalName, total, payment_method: paymentMethod, status: 'completed' })
+        .insert({ customer_name: finalName, total, payment_method: paymentMethod, status: 'completed', amount_paid: paidAmount })
         .select()
         .single()
       if (saleError) throw saleError
@@ -159,6 +161,7 @@ export default function Sales() {
       })
       setCart([])
       setCustomerName('')
+      setAmountPaid('')
       loadProducts()
       loadCustomers()
     } catch (err) {
@@ -216,6 +219,23 @@ export default function Sales() {
               <option value="card">Card</option>
             </select>
           </div>
+          <div className="field">
+            <label>Amount paid (KES)</label>
+            <input
+              type="number"
+              step="0.01"
+              value={amountPaid}
+              onChange={(e) => setAmountPaid(e.target.value)}
+              placeholder={total.toFixed(2)}
+            />
+          </div>
+          {amountPaid !== '' && (
+            <p style={{ fontSize: 13, fontWeight: 600, color: parseFloat(amountPaid) - total < 0 ? '#b3261e' : '#123524' }}>
+              {parseFloat(amountPaid) - total >= 0
+                ? `Change due: KES ${(parseFloat(amountPaid) - total).toFixed(2)}`
+                : `Balance due: KES ${(total - parseFloat(amountPaid)).toFixed(2)}`}
+            </p>
+          )}
           <button className="btn-primary" onClick={checkout} disabled={saving}>
             {saving ? 'Processing...' : 'Complete sale'}
           </button>

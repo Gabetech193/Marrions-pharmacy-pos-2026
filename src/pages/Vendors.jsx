@@ -1,9 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 
-// Well-known Kenyan pharmaceutical distributors, offered as a starting point.
-// Contact details vary by branch/region, so these are name-only suggestions —
-// verify current contacts before relying on them.
 const SUGGESTED_VENDORS = [
   { name: 'KEMSA (Kenya Medical Supplies Authority)', medicines_supplied: 'Essential medicines, public health commodities' },
   { name: 'Beta Healthcare International', medicines_supplied: 'Generic & branded pharmaceuticals' },
@@ -13,14 +10,13 @@ const SUGGESTED_VENDORS = [
   { name: 'Philips Pharmaceuticals', medicines_supplied: 'Branded & generic drugs' },
 ]
 
+const emptyForm = { name: '', contactPerson: '', phone: '', email: '', medicinesSupplied: '' }
+
 export default function Vendors() {
   const [vendors, setVendors] = useState([])
   const [showForm, setShowForm] = useState(false)
-  const [name, setName] = useState('')
-  const [contactPerson, setContactPerson] = useState('')
-  const [phone, setPhone] = useState('')
-  const [email, setEmail] = useState('')
-  const [medicinesSupplied, setMedicinesSupplied] = useState('')
+  const [editingId, setEditingId] = useState(null)
+  const [form, setForm] = useState(emptyForm)
   const [error, setError] = useState('')
 
   async function loadVendors() {
@@ -32,22 +28,53 @@ export default function Vendors() {
     loadVendors()
   }, [])
 
+  function setField(key, value) {
+    setForm((f) => ({ ...f, [key]: value }))
+  }
+
+  function startEdit(v) {
+    setEditingId(v.id)
+    setForm({
+      name: v.name,
+      contactPerson: v.contact_person || '',
+      phone: v.phone || '',
+      email: v.email || '',
+      medicinesSupplied: v.medicines_supplied || '',
+    })
+    setShowForm(true)
+  }
+
+  function cancelForm() {
+    setShowForm(false)
+    setEditingId(null)
+    setForm(emptyForm)
+    setError('')
+  }
+
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
-    const { error } = await supabase.from('vendors').insert({
-      name,
-      contact_person: contactPerson,
-      phone,
-      email,
-      medicines_supplied: medicinesSupplied,
-    })
+    const payload = {
+      name: form.name,
+      contact_person: form.contactPerson,
+      phone: form.phone,
+      email: form.email,
+      medicines_supplied: form.medicinesSupplied,
+    }
+    const { error } = editingId
+      ? await supabase.from('vendors').update(payload).eq('id', editingId)
+      : await supabase.from('vendors').insert(payload)
     if (error) {
       setError(error.message)
       return
     }
-    setName(''); setContactPerson(''); setPhone(''); setEmail(''); setMedicinesSupplied('')
-    setShowForm(false)
+    cancelForm()
+    loadVendors()
+  }
+
+  async function handleDelete(id) {
+    if (!window.confirm('Delete this vendor?')) return
+    await supabase.from('vendors').delete().eq('id', id)
     loadVendors()
   }
 
@@ -60,7 +87,7 @@ export default function Vendors() {
     <div className="content">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <h2 style={{ margin: 0 }}>Vendors</h2>
-        <button className="btn-secondary" onClick={() => setShowForm(!showForm)}>
+        <button className="btn-secondary" onClick={() => (showForm ? cancelForm() : setShowForm(true))}>
           {showForm ? 'Cancel' : '+ Add vendor'}
         </button>
       </div>
@@ -69,26 +96,26 @@ export default function Vendors() {
         <form onSubmit={handleSubmit} style={{ marginBottom: 20 }}>
           <div className="field">
             <label>Vendor / company name</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} required />
+            <input value={form.name} onChange={(e) => setField('name', e.target.value)} required />
           </div>
           <div className="field">
             <label>Contact person</label>
-            <input value={contactPerson} onChange={(e) => setContactPerson(e.target.value)} />
+            <input value={form.contactPerson} onChange={(e) => setField('contactPerson', e.target.value)} />
           </div>
           <div className="field">
             <label>Phone</label>
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} />
+            <input value={form.phone} onChange={(e) => setField('phone', e.target.value)} />
           </div>
           <div className="field">
             <label>Email</label>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <input type="email" value={form.email} onChange={(e) => setField('email', e.target.value)} />
           </div>
           <div className="field">
             <label>Medicines supplied</label>
-            <input value={medicinesSupplied} onChange={(e) => setMedicinesSupplied(e.target.value)} placeholder="e.g. antibiotics, painkillers" />
+            <input value={form.medicinesSupplied} onChange={(e) => setField('medicinesSupplied', e.target.value)} placeholder="e.g. antibiotics, painkillers" />
           </div>
           {error && <p className="error-text">{error}</p>}
-          <button className="btn-primary" type="submit">Save vendor</button>
+          <button className="btn-primary" type="submit">{editingId ? 'Update vendor' : 'Save vendor'}</button>
         </form>
       )}
 
@@ -98,6 +125,10 @@ export default function Vendors() {
             <div className="name">{v.name}</div>
             <div className="meta">{v.medicines_supplied}</div>
             <div className="meta">{v.contact_person} {v.phone}</div>
+          </div>
+          <div className="product-actions">
+            <button className="icon-btn" onClick={() => startEdit(v)} title="Edit">✏️</button>
+            <button className="icon-btn" onClick={() => handleDelete(v.id)} title="Delete">🗑️</button>
           </div>
         </div>
       ))}
