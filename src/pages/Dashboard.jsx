@@ -168,20 +168,20 @@ export default function Dashboard({ scope = 'all', userId, isAdmin }) {
       ) : (
         <>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
-            <DashCard label="Total sales" value={`KES ${totalRevenue.toFixed(2)}`} />
+            <DashCard label="Total sales" value={`KES ${totalRevenue.toFixed(2)}`} bg="#e3f2ec" fg="#0f6b41" />
             {scope === 'all' && (
-              <DashCard label="Cash left after expenses" value={`KES ${salesAfterExpenses.toFixed(2)}`} highlight={salesAfterExpenses >= 0} />
+              <DashCard label="Cash left after expenses" value={`KES ${salesAfterExpenses.toFixed(2)}`} bg={salesAfterExpenses >= 0 ? '#e0f3f5' : '#fbeceb'} fg={salesAfterExpenses >= 0 ? '#0e6e79' : '#b3261e'} />
             )}
-            <DashCard label="Items sold" value={salesItems.reduce((s, it) => s + it.quantity, 0)} />
-            {scope === 'all' && <DashCard label="Services sold" value={servicesSold} />}
+            <DashCard label="Items sold" value={salesItems.reduce((s, it) => s + it.quantity, 0)} bg="#e8ecfb" fg="#3949ab" />
+            {scope === 'all' && <DashCard label="Services sold" value={servicesSold} bg="#f3e8fb" fg="#7b1fa2" />}
             {scope === 'all' && (
               <>
-                <DashCard label="Gross profit" value={`KES ${grossProfit.toFixed(2)}`} highlight={grossProfit >= 0} />
-                <DashCard label="Expenses" value={`KES ${totalExpenses.toFixed(2)}`} />
-                <DashCard label="Net profit" value={`KES ${netProfit.toFixed(2)}`} highlight={netProfit >= 0} />
-                <DashCard label="Cost of goods sold" value={`KES ${totalCost.toFixed(2)}`} />
-                <DashCard label="Stock value (cost)" value={`KES ${stockValue.toFixed(2)}`} />
-                <DashCard label="Stock value (retail)" value={`KES ${potentialRevenue.toFixed(2)}`} />
+                <DashCard label="Gross profit" value={`KES ${grossProfit.toFixed(2)}`} bg={grossProfit >= 0 ? '#e6f4e6' : '#fbeceb'} fg={grossProfit >= 0 ? '#2e7d32' : '#b3261e'} />
+                <DashCard label="Expenses" value={`KES ${totalExpenses.toFixed(2)}`} bg="#fdeee3" fg="#c25a10" />
+                <DashCard label="Net profit" value={`KES ${netProfit.toFixed(2)}`} bg={netProfit >= 0 ? '#123524' : '#fbeceb'} fg={netProfit >= 0 ? '#ffffff' : '#b3261e'} />
+                <DashCard label="Cost of goods sold" value={`KES ${totalCost.toFixed(2)}`} bg="#f5efe0" fg="#8a6d1f" />
+                <DashCard label="Stock value (cost)" value={`KES ${stockValue.toFixed(2)}`} bg="#e6eef7" fg="#1a5a96" />
+                <DashCard label="Stock value (retail)" value={`KES ${potentialRevenue.toFixed(2)}`} bg="#fde8ef" fg="#ad1457" />
               </>
             )}
           </div>
@@ -223,11 +223,11 @@ export default function Dashboard({ scope = 'all', userId, isAdmin }) {
   )
 }
 
-function DashCard({ label, value, highlight }) {
+function DashCard({ label, value, bg = '#f3efe4', fg = '#123524' }) {
   return (
-    <div style={{ background: highlight === false ? '#fbeceb' : '#f3efe4', borderRadius: 10, padding: 12 }}>
-      <div style={{ fontSize: 12, color: '#6b6357' }}>{label}</div>
-      <div style={{ fontSize: 18, fontWeight: 700, color: '#123524' }}>{value}</div>
+    <div style={{ background: bg, borderRadius: 10, padding: 12 }}>
+      <div style={{ fontSize: 12, color: fg, opacity: 0.75 }}>{label}</div>
+      <div style={{ fontSize: 18, fontWeight: 700, color: fg }}>{value}</div>
     </div>
   )
 }

@@ -15,6 +15,14 @@ export default function Sales() {
   const [saving, setSaving] = useState(false)
   const [completedSale, setCompletedSale] = useState(null)
   const [scanning, setScanning] = useState(false)
+  const [staffName, setStaffName] = useState('')
+
+  async function loadStaffName() {
+    const { data: userData } = await supabase.auth.getUser()
+    if (!userData?.user) return
+    const { data: prof } = await supabase.from('profiles').select('name').eq('id', userData.user.id).single()
+    if (prof?.name) setStaffName(prof.name)
+  }
 
   async function loadProducts() {
     const { data } = await supabase.from('products').select('*')
@@ -33,6 +41,7 @@ export default function Sales() {
     loadProducts()
     loadServices()
     loadCustomers()
+    loadStaffName()
   }, [])
 
   function addProductToCart(product) {
@@ -162,7 +171,7 @@ export default function Sales() {
   return (
     <div className="content">
       {completedSale && (
-        <Receipt sale={completedSale.sale} items={completedSale.items} onClose={() => setCompletedSale(null)} />
+        <Receipt sale={completedSale.sale} items={completedSale.items} servedBy={staffName} onClose={() => setCompletedSale(null)} />
       )}
       {scanning && <BarcodeScanner onScan={handleScanResult} onClose={() => setScanning(false)} />}
 

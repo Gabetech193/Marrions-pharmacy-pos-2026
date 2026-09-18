@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
+import QRCode from 'qrcode'
 import { supabase } from '../lib/supabaseClient'
 
-export default function Receipt({ sale, items, onClose }) {
+export default function Receipt({ sale, items, servedBy, onClose }) {
   const [pharmacy, setPharmacy] = useState({ name: 'Marrions Pharmacy', address: 'P.O. Box 15, Kamukuywa', logo_url: null, receipt_footer: 'We treat but God heals' })
+  const [qrDataUrl, setQrDataUrl] = useState(null)
 
   useEffect(() => {
     supabase
@@ -12,6 +14,21 @@ export default function Receipt({ sale, items, onClose }) {
       .single()
       .then(({ data }) => data && setPharmacy(data))
   }, [])
+
+  useEffect(() => {
+    const receiptNo = sale.id.slice(0, 8).toUpperCase()
+    const summary = [
+      `Receipt #${receiptNo}`,
+      `${pharmacy.name}`,
+      `Customer: ${sale.customer_name}`,
+      `Date: ${new Date(sale.created_at || Date.now()).toLocaleString()}`,
+      `Total: KES ${Number(sale.total).toFixed(2)}`,
+      `Served by: ${servedBy || 'Staff'}`,
+    ].join('\n')
+    QRCode.toDataURL(summary, { width: 140, margin: 1 })
+      .then(setQrDataUrl)
+      .catch(() => setQrDataUrl(null))
+  }, [sale, pharmacy.name, servedBy])
 
   const logoSrc = pharmacy.logo_url || '/logo.jpg'
 
@@ -47,7 +64,13 @@ export default function Receipt({ sale, items, onClose }) {
               </div>
             ))}
             <div className="total-row"><span>Total</span><span>KES {sale.total.toFixed(2)}</span></div>
-            <p style={{ textAlign: 'center', fontSize: 12, color: '#6b6357', marginTop: 16 }}>{pharmacy.receipt_footer}</p>
+            <p style={{ textAlign: 'center', fontSize: 12, color: '#6b6357', marginTop: 16, marginBottom: 4 }}>{pharmacy.receipt_footer}</p>
+            <p style={{ textAlign: 'center', fontSize: 12, color: '#6b6357', margin: 0 }}>You were served by {servedBy || 'Staff'}</p>
+            {qrDataUrl && (
+              <div style={{ textAlign: 'center', marginTop: 12 }}>
+                <img src={qrDataUrl} alt="Receipt QR code" style={{ width: 110, height: 110 }} />
+              </div>
+            )}
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
