@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { supabase } from './lib/supabaseClient'
+import { supabase, warmOfflineCache, syncQueue } from './lib/supabaseClient'
 import Login from './pages/Login'
 import Products from './pages/Products'
 import Sales from './pages/Sales'
@@ -34,6 +34,8 @@ export default function App() {
   const [pharmacy, setPharmacy] = useState({ name: 'Marrions Pharmacy', logo_url: null })
   const [tab, setTab] = useState('dashboard')
   const [loading, setLoading] = useState(true)
+  const [online, setOnline] = useState(typeof navigator === 'undefined' ? true : navigator.onLine)
+  const [syncing, setSyncing] = useState(false)
 
   async function loadProfileAndSettings(userId) {
     const { data: prof } = await supabase.from('profiles').select('*').eq('id', userId).single()
@@ -45,9 +47,23 @@ export default function App() {
   }
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
+    const handleOnline = async () => {
+      setOnline(true)
+      setSyncing(true)
+      await syncQueue()
+      await warmOfflineCache()
+      setSyncing(false)
+    }
+    const handleOffline = () => setOnline(false)
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+
+    supabase.auth.getSession().then(async ({ data }) => {
       setSession(data.session)
-      if (data.session) loadProfileAndSettings(data.session.user.id)
+      if (data.session) {
+        await loadProfileAndSettings(data.session.user.id)
+        if (navigator.onLine) { setSyncing(true); await syncQueue(); await warmOfflineCache(); setSyncing(false) }
+      }
       else setLoading(false)
     })
     const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
@@ -56,7 +72,11 @@ export default function App() {
       else setProfile(null)
       setLoading(false)
     })
-    return () => listener.subscription.unsubscribe()
+    return () => {
+      listener.subscription.unsubscribe()
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
   }, [])
 
   if (loading) return <div className="app-shell content">Loading...</div>
@@ -68,6 +88,8 @@ export default function App() {
   return (
     <div className="app-shell">
       <div className="top-bar">
+        {!online && <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1000, background: '#7a4b00', color: '#fff', padding: '5px 10px', textAlign: 'center', fontSize: 12 }}>Offline mode — changes are saved on this phone and will sync when internet returns.</div>}
+        {online && syncing && <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1000, background: '#123524', color: '#fff', padding: '5px 10px', textAlign: 'center', fontSize: 12 }}>Syncing offline changes…</div>}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <img src={logoSrc} alt="logo" style={{ width: 28, height: 28, objectFit: 'contain', borderRadius: 4 }} />
           <h1>{pharmacy.name}</h1>
