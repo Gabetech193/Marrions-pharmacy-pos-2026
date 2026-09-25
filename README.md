@@ -3,7 +3,7 @@
 A fresh pharmacy POS app with product photo upload, built on React/Vite + Supabase.
 
 ## What's included
-- Staff sign-in / sign-up (Supabase Auth). **The first person to sign up becomes Admin automatically; everyone after that joins as Cashier.**
+- Staff sign-in (Supabase Auth). **There is no self-signup anymore** — an Admin creates every login (including cashier accounts) from Settings → Staff & roles, using a secure Supabase Edge Function so the sensitive service key never sits in the browser code.
 - **Roles**: Admin sees Dashboard, Sales, Products, Orders, Expenses, Customers, Services, Vendors, Settings. Cashier sees Sales, their own "My Sales" dashboard, and can add Products.
 - Bottom navigation bar (icons + labels), scrollable if it doesn't all fit.
 - **Logo**: editable anytime from Settings → upload a new logo image. Shown on login, top bar, and receipts.
@@ -15,14 +15,17 @@ A fresh pharmacy POS app with product photo upload, built on React/Vite + Supaba
 - **Sales**: pick a customer from the existing list (it autocompletes as you type) or type a brand-new name — new customers are saved automatically. Cart blocks out-of-stock/expired items with a clear message, checkout reduces stock and prints a receipt.
 - **Orders** (Admin): create a purchase order — pick a vendor, add products with quantity and cost, save to get an invoice you can Print, Save as PDF, or Send via WhatsApp (opens a chat with the vendor's saved phone number, prefilled with the order). Past orders are listed and can be reopened.
 - **Expenses** (Admin): log rent, salaries, utilities, etc. by category and date — these feed into the Dashboard's net profit figure.
-- Customers (Admin): add and delete records.
-- Services, Vendors (Admin).
+- Customers (Admin): add, edit, and delete records.
+- Services (Admin): add, edit, and delete, with an optional photo per service — shown on the Sales screen too.
+- Vendors (Admin): add, edit, and delete.
+- **Orders**: now also editable and deletable from the Past Orders list, not just viewable.
+- **Receipt**: shows Amount Paid and either Change (if overpaid) or Balance Due (if underpaid), based on what you enter at checkout — leave it blank to assume paid in full.
 - **Scan sounds**: a short beep on a successful scan, a different low buzz if the camera fails or a scanned barcode doesn't match any product.
 - **Receipt footer**: editable from Settings (defaults to "We treat but God heals").
 - **Sales**: now lists Services below Products, so you can sell a consultation, vaccination, etc. alongside items. Cart is shown at the top of the screen instead of the bottom.
 - **Dashboard**: adds a "Services sold" count, and the expense card is labeled "Cash left after expenses" (total sales revenue minus everything logged in Expenses — it does not include cost of goods, that's covered separately by Gross/Net profit). Cards now use distinct colors per metric for easier scanning at a glance.
 - **Receipts** now show "You were served by [staff name]" and a scannable QR code encoding the receipt number, customer, total, and staff name.
-- Settings (Admin): pharmacy name, address, logo, receipt footer, and staff roles.
+- Settings (Admin): pharmacy name, address, logo, receipt footer, and creating/managing staff logins. An admin can't accidentally change their own role away from Admin (that's what caused the earlier lockout) — only another admin can do that.
 
 Note: camera scanning needs HTTPS (Vercel provides this automatically) and the browser will ask for camera permission the first time you scan. WhatsApp sending opens web.whatsapp.com or the WhatsApp app with the message pre-filled — you still tap Send yourself.
 
@@ -32,13 +35,18 @@ Note: camera scanning needs HTTPS (Vercel provides this automatically) and the b
 - Tables: profiles, products (with image_url, cost_price, barcode, expiry_date, reorder_level), customers, sales (with created_by), sales_items (with created_by), services, vendors, pharmacy_settings (with logo_url), purchase_orders, purchase_order_items, expenses
 - Storage bucket: product-images (public read, authenticated upload)
 
-## If you already created a staff account before this update
-The "first signup becomes Admin" logic only applies to brand-new signups. If you already signed up earlier, your account defaulted to the old "staff" role, which the new admin check won't recognize. Run this once in the Supabase SQL Editor (replace the email):
+## One-time database step for this update
+Run this once in your Supabase SQL Editor (Supabase dashboard → SQL Editor → New query) before using the "Amount paid" feature — I couldn't reach Supabase directly this round:
 
 ```sql
-update public.profiles set role = 'admin'
-where id = (select id from auth.users where email = 'your@email.com');
+alter table public.sales add column if not exists amount_paid numeric(12,2);
 ```
+
+## Works on desktop too
+This is a responsive web app, not a native mobile app — the same URL works in any browser. The layout widens and centers itself on tablet/desktop screens instead of staying a narrow mobile column, and receipts/invoices/dashboard cards adapt to the extra space.
+
+## Bootstrapping a brand-new deployment
+If you ever set up a fresh Supabase project for this app with zero accounts, there's a chicken-and-egg problem: Settings (where you'd create staff) is Admin-only, but no one is Admin yet. In that case, come back and ask for help creating the very first admin — it's a one-line SQL command against the new project.
 
 ## Deploy steps (from your phone)
 
