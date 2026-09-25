@@ -1,15 +1,12 @@
 {
-  "name": "marrions-pharmacy-2026",
+  "name": "marrions-pharmacy-pwa",
   "private": true,
   "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview",
-    "cap:sync": "npm run build && npx cap sync android",
-    "cap:open": "npx cap open android",
-    "cap:copy": "npx cap copy android"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
@@ -18,12 +15,10 @@
     "qrcode": "^1.5.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "recharts": "^2.12.7",
-    "@capacitor/core": "^7.4.3"
+    "recharts": "^2.12.7"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.1",
-    "vite": "^5.4.8",
-    "@capacitor/cli": "^7.4.3"
+    "vite": "^5.4.8"
   }
 }
