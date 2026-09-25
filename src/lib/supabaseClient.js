@@ -148,13 +148,15 @@ function localFrom(table) {
 async function syncQueue() {
   if (isOffline()) return
   const queue = await getQueue()
+  // Do not let one failed record block every later offline change.
+  // Each queued operation is retried independently.
   for (const action of queue) {
     try {
       if (action.type === 'insert') {
         const result = await remote.from(action.table).insert(action.rows)
         if (result.error) {
           // A duplicate key means the original request probably reached the server before connectivity was lost.
-          if (!(result.error.code === '23505')) throw result.error
+          if (result.error.code !== '23505') throw result.error
         }
         await putRows(action.table, action.rows)
       } else if (action.type === 'update') {
@@ -172,9 +174,9 @@ async function syncQueue() {
       }
       await removeQueue(action.id)
     } catch (error) {
-      if (isNetworkError(error)) break
-      // Keep failed actions queued; a later manual/automatic retry can succeed after a transient server issue.
-      break
+      // Keep this item queued and continue with the rest. A later automatic
+      // retry will try this item again, while unrelated changes can sync now.
+      continue
     }
   }
 }
