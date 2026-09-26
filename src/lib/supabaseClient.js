@@ -10,7 +10,12 @@ const isOffline = () => typeof navigator !== 'undefined' && !navigator.onLine
 const isNetworkError = (error) => isOffline() || error?.name === 'TypeError' || error?.message?.toLowerCase?.().includes('failed to fetch') || NETWORK_CODES.has(error?.code)
 
 function applyFilters(rows, filters) {
-  return rows.filter(row => filters.every(f => String(row?.[f.column]) === String(f.value)))
+  return rows.filter(row => filters.every(f => {
+    const value = row?.[f.column]
+    if (f.operator === 'gte') return value != null && value >= f.value
+    if (f.operator === 'lte') return value != null && value <= f.value
+    return String(value) === String(f.value)
+  }))
 }
 
 function selectColumns(rows, columns) {
@@ -55,7 +60,9 @@ function localFrom(table) {
 
   const builder = {
     select(columns = '*') { state.columns = columns; return builder },
-    eq(column, value) { state.filters.push({ column, value }); return builder },
+    eq(column, value) { state.filters.push({ column, value, operator: 'eq' }); return builder },
+    gte(column, value) { state.filters.push({ column, value, operator: 'gte' }); return builder },
+    lte(column, value) { state.filters.push({ column, value, operator: 'lte' }); return builder },
     order(column, options = {}) { state.orderings.push({ column, ascending: options.ascending !== false }); return builder },
     single() { state.single = true; return builder },
     maybeSingle() { state.single = true; return builder },
@@ -70,7 +77,7 @@ function localFrom(table) {
       if (state.op === 'select') {
         if (!isOffline()) {
           const q = remote.from(table).select(state.columns)
-          state.filters.forEach(f => q.eq(f.column, f.value))
+          state.filters.forEach(f => { if (f.operator === 'gte') q.gte(f.column, f.value); else if (f.operator === 'lte') q.lte(f.column, f.value); else q.eq(f.column, f.value) })
           state.orderings.forEach(o => q.order(o.column, { ascending: o.ascending }))
           const result = state.single ? await q.single() : await q
           if (!result.error) {
@@ -108,7 +115,7 @@ function localFrom(table) {
         const updated = current.map(row => ({ ...row, ...state.payload }))
         if (!isOffline()) {
           const q = remote.from(table).update(state.payload)
-          state.filters.forEach(f => q.eq(f.column, f.value))
+          state.filters.forEach(f => { if (f.operator === 'gte') q.gte(f.column, f.value); else if (f.operator === 'lte') q.lte(f.column, f.value); else q.eq(f.column, f.value) })
           const result = state.columns !== '*' || state.single ? await q.select(state.columns) : await q
           if (!result.error) {
             await putRows(table, result.data || updated)
@@ -125,7 +132,7 @@ function localFrom(table) {
         const current = applyFilters(await getAll(table), state.filters)
         if (!isOffline()) {
           const q = remote.from(table).delete()
-          state.filters.forEach(f => q.eq(f.column, f.value))
+          state.filters.forEach(f => { if (f.operator === 'gte') q.gte(f.column, f.value); else if (f.operator === 'lte') q.lte(f.column, f.value); else q.eq(f.column, f.value) })
           const result = await q
           if (!result.error) {
             for (const row of current) await removeRow(table, row.id)
@@ -161,14 +168,14 @@ async function syncQueue() {
         await putRows(action.table, action.rows)
       } else if (action.type === 'update') {
         const q = remote.from(action.table).update(action.payload)
-        action.filters.forEach(f => q.eq(f.column, f.value))
+        action.filters.forEach(f => { if (f.operator === 'gte') q.gte(f.column, f.value); else if (f.operator === 'lte') q.lte(f.column, f.value); else q.eq(f.column, f.value) })
         const result = await q
         if (result.error) throw result.error
         const rows = applyFilters(await getAll(action.table), action.filters).map(r => ({ ...r, ...action.payload }))
         await putRows(action.table, rows)
       } else if (action.type === 'delete') {
         const q = remote.from(action.table).delete()
-        action.filters.forEach(f => q.eq(f.column, f.value))
+        action.filters.forEach(f => { if (f.operator === 'gte') q.gte(f.column, f.value); else if (f.operator === 'lte') q.lte(f.column, f.value); else q.eq(f.column, f.value) })
         const result = await q
         if (result.error && result.error.code !== 'PGRST116') throw result.error
       }
