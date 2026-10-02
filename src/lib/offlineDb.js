@@ -114,5 +114,7 @@ export async function getBlob(path) {
   })
 }
 
+export async function removeBlob(path) { return request('blobs', 'readwrite', store => store.delete(path)) }
+
 export function makeId() { return uuid() }
 export { TABLES }
