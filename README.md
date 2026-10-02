@@ -27,3 +27,8 @@ Before testing airplane/offline mode for the first time, open the app while onli
 File/image uploads can be previewed and retained locally while offline. Cloud storage upload should be tested while online before publishing.
 
 Staff account creation through the server function remains an online-only operation because it creates a real authentication account on Supabase.
+
+
+## Offline-first sync fix
+
+The offline queue now retries each pending operation independently. A failed vendor/customer/service/expense/settings update no longer blocks later queued sales, products, orders, or other records. Pending records remain in IndexedDB and are retried automatically when the connection returns.
