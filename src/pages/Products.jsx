@@ -1,9 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import { getBlob, saveBlob, removeBlob } from '../lib/offlineDb'
 import BarcodeScanner from './BarcodeScanner'
 import { playScanError } from '../lib/sound'
 
 const emptyForm = { name: '', category: '', costPrice: '', price: '', stock: '', reorderLevel: '10', barcode: '', expiryDate: '' }
+const PRODUCT_DRAFT_KEY = 'marrions-pharmacy-product-draft-v2'
+const PRODUCT_DRAFT_IMAGE_KEY = 'product-draft-image'
 
 export default function Products({ isAdmin }) {
   const [products, setProducts] = useState([])
@@ -17,6 +20,7 @@ export default function Products({ isAdmin }) {
   const [scanning, setScanning] = useState(false)
   const [restockingId, setRestockingId] = useState(null)
   const [restockQty, setRestockQty] = useState('')
+  const draftRestored = useRef(false)
 
   async function loadProducts() {
     const { data } = await supabase.from('products').select('*').order('created_at', { ascending: false })
@@ -27,15 +31,87 @@ export default function Products({ isAdmin }) {
     loadProducts()
   }, [])
 
+  // Android/PWABuilder file pickers can recreate the page after a photo is
+  // selected. Keep the product form and selected image in local storage so
+  // the form can be restored instead of returning to the dashboard.
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const raw = localStorage.getItem(PRODUCT_DRAFT_KEY)
+        if (!raw || cancelled) return
+        const draft = JSON.parse(raw)
+        if (!draft?.showForm) return
+
+        setShowForm(true)
+        setEditingId(draft.editingId || null)
+        setForm(draft.form || emptyForm)
+
+        if (draft.hasImage) {
+          const blob = await getBlob(PRODUCT_DRAFT_IMAGE_KEY)
+          if (blob && !cancelled) {
+            const file = new File([blob], draft.imageName || 'product-photo', {
+              type: blob.type || draft.imageType || 'image/jpeg'
+            })
+            setImageFile(file)
+            setImagePreview(URL.createObjectURL(blob))
+          }
+        }
+      } catch {
+        // Ignore a damaged/old draft and start with a clean form.
+      } finally {
+        draftRestored.current = true
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
+
+  useEffect(() => {
+    if (!draftRestored.current) return
+    if (!showForm) {
+      localStorage.removeItem(PRODUCT_DRAFT_KEY)
+      return
+    }
+    try {
+      localStorage.setItem(PRODUCT_DRAFT_KEY, JSON.stringify({
+        showForm: true,
+        editingId,
+        form,
+        hasImage: !!imageFile,
+        imageName: imageFile?.name || '',
+        imageType: imageFile?.type || ''
+      }))
+    } catch {
+      // Form saving is best-effort; the actual image is kept in IndexedDB.
+    }
+  }, [showForm, editingId, form, imageFile])
+
   function setField(key, value) {
     setForm((f) => ({ ...f, [key]: value }))
   }
 
   function handleFileChange(e) {
-    const file = e.target.files[0]
+    const file = e.target.files?.[0]
     if (!file) return
+
+    // Save the photo immediately. This is important on Android because
+    // returning from the system photo picker may recreate the web page.
     setImageFile(file)
     setImagePreview(URL.createObjectURL(file))
+
+    saveBlob(PRODUCT_DRAFT_IMAGE_KEY, file).catch(() => {})
+    try {
+      localStorage.setItem(PRODUCT_DRAFT_KEY, JSON.stringify({
+        showForm: true,
+        editingId,
+        form,
+        hasImage: true,
+        imageName: file.name || 'product-photo',
+        imageType: file.type || 'image/jpeg'
+      }))
+    } catch {
+      // The IndexedDB copy above is the important backup for the image.
+    }
   }
 
   function handleScanResult(decodedText, err) {
@@ -62,6 +138,17 @@ export default function Products({ isAdmin }) {
     setImagePreview(p.image_url || null)
     setImageFile(null)
     setShowForm(true)
+    try {
+      localStorage.setItem(PRODUCT_DRAFT_KEY, JSON.stringify({
+        showForm: true, editingId: p.id,
+        form: {
+          name: p.name, category: p.category || '', costPrice: p.cost_price || '',
+          price: p.price, stock: p.stock_quantity, reorderLevel: p.reorder_level ?? 10,
+          barcode: p.barcode || '', expiryDate: p.expiry_date || ''
+        },
+        hasImage: false
+      }))
+    } catch {}
   }
 
   function cancelForm() {
@@ -71,6 +158,10 @@ export default function Products({ isAdmin }) {
     setImageFile(null)
     setImagePreview(null)
     setError('')
+    localStorage.removeItem(PRODUCT_DRAFT_KEY)
+    // Remove only the temporary product-form image; saved product images
+    // use their own storage paths.
+    removeBlob(PRODUCT_DRAFT_IMAGE_KEY).catch(() => {})
   }
 
   async function handleDelete(id) {
@@ -99,7 +190,7 @@ export default function Products({ isAdmin }) {
       let image_url = editingId ? undefined : null
       if (imageFile) {
         const ext = imageFile.name.split('.').pop()
-        const fileName = `${crypto.randomUUID()}.${ext}`
+        const fileName = `products/${crypto.randomUUID()}.${ext}`
         const { error: uploadError } = await supabase.storage.from('product-images').upload(fileName, imageFile)
         if (uploadError) throw uploadError
         const { data: urlData } = supabase.storage.from('product-images').getPublicUrl(fileName)
