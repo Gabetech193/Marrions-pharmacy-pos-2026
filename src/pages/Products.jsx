@@ -1,12 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
-import { getBlob, saveBlob, removeBlob } from '../lib/offlineDb'
 import BarcodeScanner from './BarcodeScanner'
 import { playScanError } from '../lib/sound'
 
-const emptyForm = { name: '', category: '', costPrice: '', price: '', stock: '', reorderLevel: '10', barcode: '', expiryDate: '' }
-const PRODUCT_DRAFT_KEY = 'marrions-pharmacy-product-draft-v2'
-const PRODUCT_DRAFT_IMAGE_KEY = 'product-draft-image'
+const emptyForm = { name: '', category: '', costPrice: '', price: '', stock: '', reorderLevel: '10', barcode: '', expiryDate: '', baseUnit: 'unit', purchaseUnit: 'unit', unitsPerPurchase: '1', purchaseCost: '', saleUnit: 'unit', saleStep: '1' }
 
 export default function Products({ isAdmin }) {
   const [products, setProducts] = useState([])
@@ -20,7 +17,6 @@ export default function Products({ isAdmin }) {
   const [scanning, setScanning] = useState(false)
   const [restockingId, setRestockingId] = useState(null)
   const [restockQty, setRestockQty] = useState('')
-  const draftRestored = useRef(false)
 
   async function loadProducts() {
     const { data } = await supabase.from('products').select('*').order('created_at', { ascending: false })
@@ -31,87 +27,15 @@ export default function Products({ isAdmin }) {
     loadProducts()
   }, [])
 
-  // Android/PWABuilder file pickers can recreate the page after a photo is
-  // selected. Keep the product form and selected image in local storage so
-  // the form can be restored instead of returning to the dashboard.
-  useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      try {
-        const raw = localStorage.getItem(PRODUCT_DRAFT_KEY)
-        if (!raw || cancelled) return
-        const draft = JSON.parse(raw)
-        if (!draft?.showForm) return
-
-        setShowForm(true)
-        setEditingId(draft.editingId || null)
-        setForm(draft.form || emptyForm)
-
-        if (draft.hasImage) {
-          const blob = await getBlob(PRODUCT_DRAFT_IMAGE_KEY)
-          if (blob && !cancelled) {
-            const file = new File([blob], draft.imageName || 'product-photo', {
-              type: blob.type || draft.imageType || 'image/jpeg'
-            })
-            setImageFile(file)
-            setImagePreview(URL.createObjectURL(blob))
-          }
-        }
-      } catch {
-        // Ignore a damaged/old draft and start with a clean form.
-      } finally {
-        draftRestored.current = true
-      }
-    })()
-    return () => { cancelled = true }
-  }, [])
-
-  useEffect(() => {
-    if (!draftRestored.current) return
-    if (!showForm) {
-      localStorage.removeItem(PRODUCT_DRAFT_KEY)
-      return
-    }
-    try {
-      localStorage.setItem(PRODUCT_DRAFT_KEY, JSON.stringify({
-        showForm: true,
-        editingId,
-        form,
-        hasImage: !!imageFile,
-        imageName: imageFile?.name || '',
-        imageType: imageFile?.type || ''
-      }))
-    } catch {
-      // Form saving is best-effort; the actual image is kept in IndexedDB.
-    }
-  }, [showForm, editingId, form, imageFile])
-
   function setField(key, value) {
     setForm((f) => ({ ...f, [key]: value }))
   }
 
   function handleFileChange(e) {
-    const file = e.target.files?.[0]
+    const file = e.target.files[0]
     if (!file) return
-
-    // Save the photo immediately. This is important on Android because
-    // returning from the system photo picker may recreate the web page.
     setImageFile(file)
     setImagePreview(URL.createObjectURL(file))
-
-    saveBlob(PRODUCT_DRAFT_IMAGE_KEY, file).catch(() => {})
-    try {
-      localStorage.setItem(PRODUCT_DRAFT_KEY, JSON.stringify({
-        showForm: true,
-        editingId,
-        form,
-        hasImage: true,
-        imageName: file.name || 'product-photo',
-        imageType: file.type || 'image/jpeg'
-      }))
-    } catch {
-      // The IndexedDB copy above is the important backup for the image.
-    }
   }
 
   function handleScanResult(decodedText, err) {
@@ -134,21 +58,16 @@ export default function Products({ isAdmin }) {
       reorderLevel: p.reorder_level ?? 10,
       barcode: p.barcode || '',
       expiryDate: p.expiry_date || '',
+      baseUnit: p.base_unit || 'unit',
+      purchaseUnit: p.purchase_unit || p.base_unit || 'unit',
+      unitsPerPurchase: p.units_per_purchase ?? 1,
+      purchaseCost: p.purchase_cost ?? '',
+      saleUnit: p.sale_unit || p.base_unit || 'unit',
+      saleStep: p.sale_step ?? 1,
     })
     setImagePreview(p.image_url || null)
     setImageFile(null)
     setShowForm(true)
-    try {
-      localStorage.setItem(PRODUCT_DRAFT_KEY, JSON.stringify({
-        showForm: true, editingId: p.id,
-        form: {
-          name: p.name, category: p.category || '', costPrice: p.cost_price || '',
-          price: p.price, stock: p.stock_quantity, reorderLevel: p.reorder_level ?? 10,
-          barcode: p.barcode || '', expiryDate: p.expiry_date || ''
-        },
-        hasImage: false
-      }))
-    } catch {}
   }
 
   function cancelForm() {
@@ -158,10 +77,6 @@ export default function Products({ isAdmin }) {
     setImageFile(null)
     setImagePreview(null)
     setError('')
-    localStorage.removeItem(PRODUCT_DRAFT_KEY)
-    // Remove only the temporary product-form image; saved product images
-    // use their own storage paths.
-    removeBlob(PRODUCT_DRAFT_IMAGE_KEY).catch(() => {})
   }
 
   async function handleDelete(id) {
@@ -172,10 +87,12 @@ export default function Products({ isAdmin }) {
   }
 
   async function handleRestock(id) {
-    const qty = parseInt(restockQty, 10)
-    if (!qty || qty <= 0) return
+    const qty = Number(restockQty)
+    if (!Number.isFinite(qty) || qty <= 0) return
     const product = products.find((p) => p.id === id)
-    await supabase.from('products').update({ stock_quantity: (product.stock_quantity || 0) + qty }).eq('id', id)
+    const conversion = Number(product?.units_per_purchase || 1)
+    const addedBase = qty * conversion
+    await supabase.from('products').update({ stock_quantity: Number(product?.stock_quantity || 0) + addedBase }).eq('id', id)
     setRestockingId(null)
     setRestockQty('')
     loadProducts()
@@ -190,7 +107,7 @@ export default function Products({ isAdmin }) {
       let image_url = editingId ? undefined : null
       if (imageFile) {
         const ext = imageFile.name.split('.').pop()
-        const fileName = `products/${crypto.randomUUID()}.${ext}`
+        const fileName = `${crypto.randomUUID()}.${ext}`
         const { error: uploadError } = await supabase.storage.from('product-images').upload(fileName, imageFile)
         if (uploadError) throw uploadError
         const { data: urlData } = supabase.storage.from('product-images').getPublicUrl(fileName)
@@ -202,8 +119,14 @@ export default function Products({ isAdmin }) {
         category: form.category,
         cost_price: form.costPrice ? parseFloat(form.costPrice) : 0,
         price: parseFloat(form.price),
-        stock_quantity: parseInt(form.stock || '0', 10),
-        reorder_level: parseInt(form.reorderLevel || '10', 10),
+        stock_quantity: Number(form.stock || '0'),
+        reorder_level: Number(form.reorderLevel || '10'),
+        base_unit: form.baseUnit || 'unit',
+        purchase_unit: form.purchaseUnit || form.baseUnit || 'unit',
+        units_per_purchase: Number(form.unitsPerPurchase || 1),
+        purchase_cost: form.purchaseCost === '' ? null : Number(form.purchaseCost),
+        sale_unit: form.saleUnit || form.baseUnit || 'unit',
+        sale_step: Number(form.saleStep || 1),
         barcode: form.barcode || null,
         expiry_date: form.expiryDate || null,
       }
@@ -269,8 +192,35 @@ export default function Products({ isAdmin }) {
             <input type="number" step="0.01" value={form.price} onChange={(e) => setField('price', e.target.value)} required />
           </div>
           <div className="field">
-            <label>Stock quantity</label>
-            <input type="number" value={form.stock} onChange={(e) => setField('stock', e.target.value)} />
+            <label>Base / dispensing unit</label>
+            <input value={form.baseUnit} onChange={(e) => setField('baseUnit', e.target.value)} placeholder="tablet, capsule, bottle, piece" />
+            <small style={{ color: '#6b6357' }}>The smallest unit used to track stock.</small>
+          </div>
+          <div className="field">
+            <label>Purchase unit</label>
+            <input value={form.purchaseUnit} onChange={(e) => setField('purchaseUnit', e.target.value)} placeholder="box, strip, bottle" />
+          </div>
+          <div className="field">
+            <label>Base units in one purchase unit</label>
+            <input type="number" min="0.01" step="0.01" value={form.unitsPerPurchase} onChange={(e) => setField('unitsPerPurchase', e.target.value)} />
+            <small style={{ color: '#6b6357' }}>Example: 1 box = 100 tablets, enter 100.</small>
+          </div>
+          <div className="field">
+            <label>Purchase cost per {form.purchaseUnit || 'unit'} (KES)</label>
+            <input type="number" min="0" step="0.01" value={form.purchaseCost} onChange={(e) => setField('purchaseCost', e.target.value)} placeholder="Optional" />
+          </div>
+          <div className="field">
+            <label>Selling unit</label>
+            <input value={form.saleUnit} onChange={(e) => setField('saleUnit', e.target.value)} placeholder="tablet, capsule, bottle" />
+          </div>
+          <div className="field">
+            <label>Smallest sale quantity</label>
+            <input type="number" min="0.01" step="0.01" value={form.saleStep} onChange={(e) => setField('saleStep', e.target.value)} />
+            <small style={{ color: '#6b6357' }}>Use 0.25 for quarter, 0.5 for half, or 1 for whole units.</small>
+          </div>
+          <div className="field">
+            <label>Opening stock ({form.baseUnit || 'base units'})</label>
+            <input type="number" min="0" step="0.01" value={form.stock} onChange={(e) => setField('stock', e.target.value)} />
           </div>
           <div className="field">
             <label>Low stock alert level</label>
@@ -301,7 +251,7 @@ export default function Products({ isAdmin }) {
                   {lowStock && <span className="expired-badge" style={{ color: '#a0680a' }}>LOW STOCK</span>}
                   {p.stock_quantity <= 0 && <span className="expired-badge">OUT OF STOCK</span>}
                 </div>
-                <div className="meta">{p.category || 'Uncategorized'} • Sell KES {p.price} • Cost KES {p.cost_price || 0} • Stock: {p.stock_quantity}</div>
+                <div className="meta">{p.category || 'Uncategorized'} • Sell KES {p.price}/{p.sale_unit || p.base_unit || 'unit'} • Stock: {p.stock_quantity} {p.base_unit || 'units'} • 1 {p.purchase_unit || 'unit'} = {p.units_per_purchase || 1} {p.base_unit || 'units'}</div>
                 {p.expiry_date && <div className="meta">Expires: {p.expiry_date}</div>}
               </div>
               <div className="product-actions">
@@ -318,7 +268,8 @@ export default function Products({ isAdmin }) {
               <div style={{ display: 'flex', gap: 8, padding: '0 0 12px' }}>
                 <input
                   type="number"
-                  placeholder="Quantity to add"
+                  step="0.01"
+                  placeholder={`Quantity in ${p.purchase_unit || 'purchase units'}`}
                   value={restockQty}
                   onChange={(e) => setRestockQty(e.target.value)}
                   style={{ flex: 1, padding: 8, border: '1px solid #d9d3c7', borderRadius: 6 }}

@@ -55,16 +55,17 @@ export default function Sales() {
       alert('This product is out of stock, please restock.')
       return
     }
+    const step = Number(product.sale_step || 1)
     setCart((prev) => {
       const existing = prev.find((c) => c.type === 'product' && c.item.id === product.id)
       if (existing) {
-        if (existing.quantity + 1 > product.stock_quantity) {
+        if (existing.quantity + step > Number(product.stock_quantity || 0)) {
           alert('Not enough stock available.')
           return prev
         }
-        return prev.map((c) => (c === existing ? { ...c, quantity: c.quantity + 1 } : c))
+        return prev.map((c) => (c === existing ? { ...c, quantity: Number((c.quantity + step).toFixed(4)) } : c))
       }
-      return [...prev, { type: 'product', item: product, quantity: 1 }]
+      return [...prev, { type: 'product', item: product, quantity: Math.min(step, Number(product.stock_quantity || 0)) }]
     })
   }
 
@@ -189,10 +190,10 @@ export default function Sales() {
           <h3 style={{ marginTop: 0 }}>Cart</h3>
           {cart.map((c) => (
             <div className="cart-row" key={`${c.type}-${c.item.id}`}>
-              <span>{c.item.name} x{c.quantity}</span>
+              <span>{c.item.name} x{c.quantity} {c.type === 'product' ? (c.item.sale_unit || c.item.base_unit || 'unit') : 'unit'}</span>
               <span>
                 KES {(c.item.price * c.quantity).toFixed(2)}{' '}
-                <a href="#" onClick={() => removeFromCart(c.type, c.item.id)} style={{ marginLeft: 8, fontSize: 12 }}>remove</a>
+                {c.type === 'product' && <><button type="button" className="icon-btn" onClick={() => setCart(prev => prev.map(x => x === c ? { ...x, quantity: Math.max(Number(c.item.sale_step || 1), Number((c.quantity - Number(c.item.sale_step || 1)).toFixed(4))) } : x))}>−</button><button type="button" className="icon-btn" onClick={() => { const step = Number(c.item.sale_step || 1); if (c.quantity + step <= Number(c.item.stock_quantity || 0)) setCart(prev => prev.map(x => x === c ? { ...x, quantity: Number((x.quantity + step).toFixed(4)) } : x)) }}>+</button></>} <a href="#" onClick={(e) => { e.preventDefault(); removeFromCart(c.type, c.item.id) }} style={{ marginLeft: 8, fontSize: 12 }}>remove</a>
               </span>
             </div>
           ))}
@@ -261,7 +262,7 @@ export default function Sales() {
                 {expired && <span className="expired-badge">EXPIRED</span>}
                 {!expired && outOfStock && <span className="expired-badge">OUT OF STOCK</span>}
               </div>
-              <div className="meta">KES {p.price} • Stock: {p.stock_quantity}</div>
+              <div className="meta">KES {p.price}/{p.sale_unit || p.base_unit || 'unit'} • Stock: {p.stock_quantity} {p.base_unit || 'units'} • Sale step: {p.sale_step || 1}</div>
             </div>
           </div>
         )
